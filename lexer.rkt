@@ -3,8 +3,7 @@
 (require parser-tools/lex)
 (require (prefix-in : parser-tools/lex-sre))
 
-;; (parser)
-;; (lexer)
+(provide Keywords Basic Special Punctuators get-token)
 
 (define-empty-tokens Keywords
   (auto
@@ -39,7 +38,10 @@
    unsigned
    void
    volatile
-   while))
+   while
+   _Bool
+   _Complex
+   _Imaginary))
 ;; with lexeme
 (define-tokens Basic
   (IDENTIFIER NUMBER CHARACTER_CONSTANT STRING_LITERAL COMMENT))
