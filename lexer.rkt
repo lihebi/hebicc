@@ -23,11 +23,14 @@
 
    CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
-   ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL))
+   ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
+
+   ! % & L_PAREN R_PAREN * + COMMA - PERIOD / : SEMI_COLON < = > ? L_BRACKET R_BRACKET ^ L_BRACE OR R_BRACE ~
+   ))
 
 (define-empty-tokens
   et
-  (! % & L_PAREN R_PAREN * + COMMA - PERIOD / : SEMI_COLON < = > ? L_BRACKET R_BRACKET ^ L_BRACE OR R_BRACE ~))
+  ())
 
 ;; TODO
 (define (comment in)
@@ -68,125 +71,134 @@
   (lexer ["/*" (comment input-port)]
          [(:: "//" (:* (complement (:or #\return #\linefeed)))) #f]
          
-         ["auto" (token-AUTO)]
-         ["break" (token-BREAK)]
-         ["case" (token-CASE)]
-         ["char" (token-CHAR)]
+         ["auto" (token-AUTO "auto")]
+         ["break" (token-BREAK "break")]
+         ["case" (token-CASE "case")]
+         ["char" (token-CHAR "char")]
 
-         ["const" (token-CONST)]
-         ["continue" (token-CONTINUE)]
-         ["default" (token-DEFAULT)]
-         ["do" (token-DO)]
-         ["double" (token-DOUBLE)]
-         ["else" (token-ELSE)]
-         ["enum" (token-ENUM)]
-         ["extern" (token-EXTERN)]
-         ["float" (token-FLOAT)]
-         ["for" (token-FOR)]
-         ["goto" (token-GOTO)]
-         ["if" (token-IF)]
-         ["inline" (token-INLINE)]
-         ["int" (token-INT)]
-         ["long" (token-LONG)]
-         ["register" (token-REGISTER)]
-         ["restrict" (token-RESTRICT)]
-         ["return" (token-RETURN)]
-         ["short" (token-SHORT)]
-         ["signed" (token-SIGNED)]
-         ["sizeof" (token-SIZEOF)]
-         ["static" (token-STATIC)]
-         ["struct" (token-STRUCT)]
-         ["switch" (token-SWITCH)]
-         ["typedef" (token-TYPEDEF)]
-         ["union" (token-UNION)]
-         ["unsigned" (token-UNSIGNED)]
-         ["void" (token-VOID)]
-         ["volatile" (token-VOLATILE)]
-         ["while" (token-WHILE)]
-         ["_Alignas" (token-ALIGNAS)]
-         ["_Alignof" (token-ALIGNOF)]
-         ["_Atomic" (token-ATOMIC)]
-         ["_Bool" (token-BOOL)]
-         ["_Complex" (token-COMPLEX)]
-         ["_Generic" (token-GENERIC)]
-         ["_Imaginary" (token-IMAGINARY)]
-         ["_Noreturn" (token-NORETURN)]
-         ["_Static_assert" (token-STATIC_ASSERT)]
-         ["_Thread_local" (token-THREAD_LOCAL)]
-         ["__func__" (token-FUNC_NAME)]
+         ["const" (token-CONST "const")]
+         ["continue" (token-CONTINUE "continue")]
+         ["default" (token-DEFAULT "default")]
+         ["do" (token-DO "do")]
+         ["double" (token-DOUBLE "double")]
+         ["else" (token-ELSE "else")]
+         ["enum" (token-ENUM "enum")]
+         ["extern" (token-EXTERN "extern")]
+         ["float" (token-FLOAT "float")]
+         ["for" (token-FOR "for")]
+         ["goto" (token-GOTO "goto")]
+         ["if" (token-IF "if")]
+         ["inline" (token-INLINE "inline")]
+         ["int" (token-INT "int")]
+         ["long" (token-LONG "long")]
+         ["register" (token-REGISTER "register")]
+         ["restrict" (token-RESTRICT "restrict")]
+         ["return" (token-RETURN "return")]
+         ["short" (token-SHORT "short")]
+         ["signed" (token-SIGNED "signed")]
+         ["sizeof" (token-SIZEOF "sizeof")]
+         ["static" (token-STATIC "static")]
+         ["struct" (token-STRUCT "struct")]
+         ["switch" (token-SWITCH "switch")]
+         ["typedef" (token-TYPEDEF "typedef")]
+         ["union" (token-UNION "union")]
+         ["unsigned" (token-UNSIGNED "unsigned")]
+         ["void" (token-VOID "void")]
+         ["volatile" (token-VOLATILE "volatile")]
+         ["while" (token-WHILE "while")]
+         ["_Alignas" (token-ALIGNAS "_Alignas")]
+         ["_Alignof" (token-ALIGNOF "_Alignof")]
+         ["_Atomic" (token-ATOMIC "_Atomic")]
+         ["_Bool" (token-BOOL "_Bool")]
+         ["_Complex" (token-COMPLEX "_Complex")]
+         ["_Generic" (token-GENERIC "_Generic")]
+         ["_Imaginary" (token-IMAGINARY "_Imaginary")]
+         ["_Noreturn" (token-NORETURN "_Noreturn")]
+         ["_Static_assert" (token-STATIC_ASSERT "_Static_assert")]
+         ["_Thread_local" (token-THREAD_LOCAL "_Thread_local")]
+         ["__func__" (token-FUNC_NAME "__func__")]
 
          ;; TODO check-type
-         [(:: L (:* A)) (check-type lexeme)]
+         [(:: L (:* A)) #;(check-type lexeme)
+                        (token-IDENTIFIER lexeme)]
          
-         [(:: HP (:+ H) (:? IS)) (token-I_CONSTANT)]
-         [(:: NZ (:* D) (:? IS)) (token-I_CONSTANT)]
-         [(:: "0" (:* O) (:? IS)) (token-I_CONSTANT)]
-         [(:: (:? CP) #\' (:+ CChar) #\') (token-I_CONSTANT)]
+         [(:: HP (:+ H) (:? IS)) (token-I_CONSTANT lexeme)]
+         [(:: NZ (:* D) (:? IS)) (token-I_CONSTANT lexeme)]
+         [(:: "0" (:* O) (:? IS)) (token-I_CONSTANT lexeme)]
+         [(:: (:? CP) #\' (:+ CChar) #\') (token-I_CONSTANT lexeme)]
 
-         [(:: (:+ D) E (:? FS)) (token-F_CONSTANT)]
-         [(:: (:* D) "." (:+ D) (:? E) (:? FS)) (token-F_CONSTANT)]
-         [(:: (:+ D) "." (:? E) (:? FS)) (token-F_CONSTANT)]
-         [(:: HP (:+ H) P (:? FS)) (token-F_CONSTANT)]
-         [(:: HP (:* H) "." (:+ H) P (:? FS)) (token-F_CONSTANT)]
-         [(:: HP (:+ H) "." P (:? FS)) (token-F_CONSTANT)]
+         [(:: (:+ D) E (:? FS)) (token-F_CONSTANT lexeme)]
+         [(:: (:* D) "." (:+ D) (:? E) (:? FS)) (token-F_CONSTANT lexeme)]
+         [(:: (:+ D) "." (:? E) (:? FS)) (token-F_CONSTANT lexeme)]
+         [(:: HP (:+ H) P (:? FS)) (token-F_CONSTANT lexeme)]
+         [(:: HP (:* H) "." (:+ H) P (:? FS)) (token-F_CONSTANT lexeme)]
+         [(:: HP (:+ H) "." P (:? FS)) (token-F_CONSTANT lexeme)]
 
-         [(:: (:? SP) #\" (:* SChar) #\")]
+         [(:: (:? SP) #\" (:* SChar) #\") (token-STRING_LITERAL lexeme)]
 
-         ["..." (token-ELLIPSIS)]
-         [">>=" (token-RIGHT_ASSIGN)]
-         ["<<=" (token-LEFT_ASSIGN)]
-         ["+=" (token-ADD_ASSIGN)]
-         ["-=" (token-SUB_ASSIGN)]
-         ["*=" (token-MUL_ASSIGN)]
-         ["/=" (token-DIV_ASSIGN)]
-         ["%=" (token-MOD_ASSIGN)]
-         ["&=" (token-AND_ASSIGN)]
-         ["^=" (token-XOR_ASSIGN)]
-         ["|=" (token-OR_ASSIGN)]
-         [">>" (token-RIGHT_OP)]
-         ["<<" (token-LEFT_OP)]
-         ["++" (token-INC_OP)]
-         ["--" (token-DEC_OP)]
-         ["->" (token-PTR_OP)]
-         ["&&" (token-AND_OP)]
-         ["||" (token-OR_OP)]
-         ["<=" (token-LE_OP)]
-         [">=" (token-GE_OP)]
-         ["==" (token-EQ_OP)]
-         ["!=" (token-NE_OP)]
+         ["..." (token-ELLIPSIS "...")]
+         [">>=" (token-RIGHT_ASSIGN ">>=")]
+         ["<<=" (token-LEFT_ASSIGN "<<=")]
+         ["+=" (token-ADD_ASSIGN lexeme)]
+         ["-=" (token-SUB_ASSIGN lexeme)]
+         ["*=" (token-MUL_ASSIGN lexeme)]
+         ["/=" (token-DIV_ASSIGN lexeme)]
+         ["%=" (token-MOD_ASSIGN lexeme)]
+         ["&=" (token-AND_ASSIGN lexeme)]
+         ["^=" (token-XOR_ASSIGN lexeme)]
+         ["|=" (token-OR_ASSIGN lexeme)]
+         [">>" (token-RIGHT_OP lexeme)]
+         ["<<" (token-LEFT_OP lexeme)]
+         ["++" (token-INC_OP lexeme)]
+         ["--" (token-DEC_OP lexeme)]
+         ["->" (token-PTR_OP lexeme)]
+         ["&&" (token-AND_OP lexeme)]
+         ["||" (token-OR_OP lexeme)]
+         ["<=" (token-LE_OP lexeme)]
+         [">=" (token-GE_OP lexeme)]
+         ["==" (token-EQ_OP lexeme)]
+         ["!=" (token-NE_OP lexeme)]
 
          ;; empty tokens
-         [";" (token-SEMI_COLON)]
-         [(:or "{" "<%") (token-L_BRACE)]
-         [(:or "}" "%>") (token-R_BRACE)]
-         ["," (token-COMMA)]
-         [":" (token-:)]
-         ["=" (token-=)]
-         ["(" (token-L_BRACE)]
-         [")" (token-R_BRACE)]
-         [("["|"<:") (token-L_BRACKET)]
-         [("]"|":>") (token-R_BRACKET)]
-         ["." (token-PERIOD)]
-         ["&" (token-&)]
-         ["!" (token-!)]
-         ["~" (token-~)]
-         ["-" (token--)]
-         ["+" (token-+)]
-         ["*" (token-*)]
-         ["/" (token-/)]
-         ["%" (token-%)]
-         ["<" (token-<)]
-         [">" (token->)]
-         ["^" (token-^)]
-         ["|" (token-OR)]
-         ["?" (token-?)]
+         [";" (token-SEMI_COLON lexeme)]
+         [(:or "{" "<%") (token-L_BRACE "{")]
+         [(:or "}" "%>") (token-R_BRACE "}")]
+         ["," (token-COMMA lexeme)]
+         [":" (token-: lexeme)]
+         ["=" (token-= lexeme)]
+         ["(" (token-L_BRACE lexeme)]
+         [")" (token-R_BRACE lexeme)]
+         [(:or "[" "<:") (token-L_BRACKET "[")]
+         [(:or "]" ":>") (token-R_BRACKET "]")]
+         ["." (token-PERIOD lexeme)]
+         ["&" (token-& lexeme)]
+         ["!" (token-! lexeme)]
+         ["~" (token-~ lexeme)]
+         ["-" (token-- lexeme)]
+         ["+" (token-+ lexeme)]
+         ["*" (token-* lexeme)]
+         ["/" (token-/ lexeme)]
+         ["%" (token-% lexeme)]
+         ["<" (token-< lexeme)]
+         [">" (token-> lexeme)]
+         ["^" (token-^ lexeme)]
+         ["|" (token-OR lexeme)]
+         ["?" (token-? lexeme)]
 
-         [(:+ WS) #f]                   ; remove whitespace
-         [any-string #f]                ; discard bad characters
+         [(:+ WS) (get-lexer input-port)]                   ; remove whitespace
+         ;; [any-string 'bad]                ; discard bad characters
          ))
 
+(define (string-lexer str)
+  (let* ([in (open-input-string str)])
+    (lambda () (get-lexer in))))
 
-
+(module+ test
+  (let ([mylex (string-lexer "int main(char *c) {return 0;}")])
+    (let loop ([tok (mylex)])
+      (when (not (eq? tok 'eof))
+        (print tok)
+        (loop (mylex))))))
 
 #;
 (define-lex-abbrevs
@@ -337,8 +349,4 @@
                  [Comment (token-COMMENT lexeme)]
                  [(eof) 'eof]))
 
-(module+ test
-  (let* ([in (open-input-string "int main() {return 0;}")])
-    (let loop ([token (get-token in)])
-      (println token)
-      (unless (eq? (position-token-token token) 'eof) (loop (get-token in))))))
+
