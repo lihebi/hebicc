@@ -3,7 +3,7 @@
 (require parser-tools/lex)
 (require (prefix-in : parser-tools/lex-sre))
 
-(provide t et string-lexer get-lexer token-name)
+(provide t et string-lexer get-lexer)
 
 (define-tokens
   t
