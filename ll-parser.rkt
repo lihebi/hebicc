@@ -31,6 +31,10 @@
 ;;     (parse lexer)))
 
 
+(module+ test
+  (let* ([lex (string-lexer "int a;")]
+         [ll (ll-lexer lex)])
+    (parse-statement ll)))
 
 
 ;; TODO general checking EOF
@@ -59,12 +63,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (parse-statement ll)
-  (let loop ([res (parse-statement-or-declaration ll)])
-    (when res
-      (loop (parse-statement-or-declaration ll)))))
+  (println "parse-statement")
+  (let loop ()
+    (when (parse-statement-or-declaration ll)
+      #f
+      #;(loop)
+      )))
 
 (define (parse-statement-or-declaration ll)
-  (match (list (token-name (ll 0)))
+  (println "parse-statement-or-declaration")
+  (match (token-name (ll 0))
     ['IDENTIFIER (when (eq? (token-name (ll 1)) ':)
                    (parse-labeled-statement ll))]
     ;; if is part of declaration specifier
@@ -231,7 +239,6 @@
 ;; (define (parse-assignment-expression ll) #f)
 ;; (define (parse-rhs-of-binary-expression ll prec) #f)
 
-;; TODO TODO TODO
 (define (parse-expression ll)
   (parse-assignment-expression ll)
   (parse-rhs-of-binary-expression ll prec-comma))
@@ -324,6 +331,13 @@
             (parse-expression ll))))
   (consume ll))
 
+
+;; FIXME should be merged with parse-paren-expression
+(define (parse-paren-expr-or-condition ll)
+  (consume ll)
+  (parse-expression ll)
+  (consume ll))
+
 ;; we are at the left brace
 ;; postfix-expression ::= ( type-name ) { initializer-list }
 ;; postfix-expression ::= ( type-name ) { initializer-list , }
@@ -386,13 +400,29 @@
                      (consume ll))]
     [('++ '--) (consume ll)]))
 
-(define (parse-constant-expression ll) #f)
-;; TODO difference from parse-expression
-(define (parse-paren-expr-or-condition ll) #f)
+(define (parse-constant-expression ll)
+  (parse-cast-expression ll)
+  (parse-rhs-of-binary-expression ll))
 
 
-;; TODO NOW
-(define (parse-expression-list ll) #f)
+
+;; argument-expression-list ::= argument-expression-list, argument-expression
+(define (parse-expression-list ll)
+  (let loop ([dummy #f])
+    (parse-assignment-expression ll)
+    (when (eq? (token-name (ll 0)) 'comma)
+      (loop #f))))
+
+
+
+
+
+
+
+
+
+
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -402,10 +432,12 @@
 ;; corresponding to parse-simple-declaration, the non-simple ones are
 ;; for C++
 (define (parse-declaration ll)
+  (println "parse-declaration")
   (parse-declaration-specifiers ll)
-  (parse-decl-group))
+  (parse-decl-group ll))
 
-(define (parse-declaration-specifiers ll)
+ (define (parse-declaration-specifiers ll)
+  (println "parse-declaration-specifiers")
   (case (token-name (ll 0))
     ;; storage class specifier
     ['typedef #f]
@@ -438,6 +470,7 @@
     ))
 
 (define (parse-decl-group ll)
+  (println "parse-decl-group")
   (parse-declarator ll)
   ;; FIXME use conditional to choose between function definition and
   ;; simple declarator
@@ -451,6 +484,7 @@
 ;; 1. extract all functions
 ;; 2. extract all typedefs
 (define (parse-function-definition ll)
+  (print "parse-function-definition")
   ;; FIXME conditional
   (parse-knr-param-declarations)
   (parse-compound-statement-body))
@@ -483,6 +517,8 @@
   (parse-statement-or-declaration ll))
 
 (define (parse-declarator ll)
+  (println "parse-declarator")
+  (println (ll 0))
   (parse-type-qualifier-list-opt ll)
   (if (eq? (token-name (ll 0)) '*)
       ;; pointer
