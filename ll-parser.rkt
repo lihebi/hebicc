@@ -3,19 +3,56 @@
 (require parser-tools/lex)
 (require "lexer.rkt")
 
+
+
+;; back-stack back    |||   active-back port-cache
 (define (ll-lexer lexer)
-  (let ([cache '()])
+  (let ([port-cache (list (lexer) (lexer))]
+        [back-stack '()]
+        [back '()]
+        [is-backtracking? #f]
+        [active-back '()])
+    (define (consume)
+      (let ([res #f])
+        (if (not (null? active-back))
+            (begin
+              (set! res (car active-back))
+              (set! active-back (cdr active-back)))
+            (begin
+              (set! res (car (port-cache)))
+              (set! port-cache (append port-cache (list (lexer))))
+              (set! port-cache (cdr port-cache))))
+        res))
     (lambda (k)
       (case k
-        [(-1) (set! cache (cdr cache))]
-        [(0) (begin
-               (when (null? cache)
-                 (set! cache (append cache (list (lexer)))))
-               (car cache))]
+        [(consume) (let ([res (consume)])
+                    (when is-backtracking?
+                      (set! back (append back res))))]
+        [(track) (begin
+                  (set! is-backtracking? #t)
+                  (when (not (null? back))
+                    (set! back-stack (append back-stack back))
+                    (set! back '())))]
+        [(pop) (set! back-stack (drop-right back-stack 1))]
+        [(restore) (begin
+                    (set! active-back (append (take-right back-stack 1)
+                                              active-back)))]
+        [(0) (if (not (null? active-back))
+               (car active-back)
+               (car port-cache))]
         [(1) (begin
-               (when (null? (cdr cache))
-                 (set! cache (append cache (list (lexer)))))
-               (cadr cache))]))))
+             (if (not (null? active-back))
+                 (if (not (null? (cdr active-back)))
+                     (cadr active-back)
+                     (car port-cache))
+                 (cadr port-cache)))]
+        [else (raise-syntax-error "Invalid operation for ll-lexer")]))))
+
+((lambda (x)
+   (case x
+     [(''a 8) 'a]
+     ['5 '5])) 'a)
+
 
 (module+ test
   (let* ([lex (string-lexer "int main() {int a;}")]
@@ -23,7 +60,7 @@
     (print (ll-lex 0))
     (print (ll-lex 0))
     (print (ll-lex 1))
-    (ll-lex -1)
+    (ll-lex 'consume)
     (print (ll-lex 0))))
 
 ;; (define (parse-program str)
@@ -40,13 +77,10 @@
 ;; TODO general checking EOF
 ;; TODO general consume token
 
-(define (consume ll)
-  (ll -1))
-
 ;; FIXME what to return??
 (define (try-consume ll target)
   (when (eq? (ll 0) target)
-    (ll -1)))
+    (ll 'consume)))
 
 (define (skip-until ll target)
   (case (token-name (ll 0))
@@ -118,8 +152,8 @@
 
 ;; labeled-statement ::= identifier ':' statement
 (define (parse-labeled-statement ll)
-  (consume ll)
-  (consume ll)
+  (ll 'consume)
+  (ll 'consume)
   (parse-statement ll))
 
 ;; this actually parse all nested case
@@ -127,299 +161,217 @@
   (let loop ([dummy #f])
     (when (eq? (token-name (ll 0)) 'case)
       (parse-constant-expression ll)
-      (consume ll)
+      (ll 'consume)
       (loop))
     (parse-statement ll)))
 
 (define (parse-default-statement ll)
-  (consume ll)
+  (ll 'consume)
   (parse-statement ll))
 
 (define (parse-compound-statement ll)
   ;; FIXME track the open and close brace
-  (consume ll)
+  (ll 'consume)
   (let loop ([dummy #f])
     (when (not (eq? (token-name (ll 0)) 'r-brace))
       (parse-statement-or-declaration ll))))
 
 (define (parse-null-statement ll)
-  (consume ll))
+  (ll 'consume))
 
 ;; FIXME scope
 (define (parse-if-statement ll)
-  (consume ll)
-  (parse-paren-expr-or-condition ll)
+  (ll 'consume)                         ; if
+  (ll 'consume)                         ; (
+  (parse-expression ll)
+  (ll 'consume)                         ; )
   (parse-statement ll)
   (when (eq? (token-name (ll 0)) 'else)
-    (consume ll)
+    (ll 'consume)                       ; else
     (parse-statement ll)))
 (define (parse-switch-statement ll)
-  (consume ll)
-  (parse-paren-expr-or-condition ll)
+  (ll 'consume)                         ; switch
+  (ll 'consume)                         ; (
+  (parse-expression ll)
+  (ll 'consume)                         ; )
   (parse-statement ll))
 (define (parse-while-statement ll)
-  (consume ll)
-  (parse-paren-expr-or-condition ll)
+  (ll 'consume)                         ; while
+  (ll 'consume)                         ; (
+  (parse-expression ll)
+  (ll 'consume)                         ; )
   (parse-statement ll))
 (define (parse-do-statement ll)
-  (consume ll)
+  (ll 'consume)
   (parse-statement ll)
   ;; FIXME why use parse-expression here instead of parse-paren-expr-or-condition
   (parse-expression ll))
 (define (parse-for-statement ll)
-  (consume ll)
+  (ll 'consume)
   ;; FIXME this might be a simple assignment statement
   ;; FIXME check emptyness
   (parse-declaration ll)
   (parse-expression ll)
   (parse-expression ll)
   ;; FIXME GENERAL when consuming, check if it is expected
-  (consume ll)
+  (ll 'consume)
   (parse-statement ll))
 (define (parse-goto-statement ll)
-  (consume ll)
+  (ll 'consume)
   ;; this identifier should be returned
   ;; FIXME not an identifier?
   (when (eq? (token-name (ll 0)) 'identifier)
-    (consume ll)))
+    (ll 'consume)))
 (define (parse-continue-statement ll)
-  (consume ll))
+  (ll 'consume))
 (define (parse-break-statement ll)
-  (consume ll))
+  (ll 'consume))
 (define (parse-return-statement ll)
-  (consume ll)
+  (ll 'consume)
   (parse-expression ll))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Expressions
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-values
-  (prec-unkown
-   prec-comma
-   prec-assignment
-   prec-conditional
-   prec-logical-or
-   prec-logical-and
-   prec-inclusive-or
-   prec-exclusive-or
-   prec-and
-   prec-equality
-   prec-relational
-   prec-shift
-   prec-additive
-   prec-multiplicative
-   prec-pointer-to-member)
-  (apply values (range 0 15)))
-
-(define (get-bin-op-precedence tok)
-  (case (token-name tok)
-    ['COMMA prec-comma]
-    [('= '*= '/= '%= '+= '-= '<<= '>>= '&= '^= 'or-assign) prec-assignment]
-    ['? prec-conditional]
-    ['or-op prec-logical-or]
-    ['&& prec-logical-and]
-    ['or prec-inclusive-or]
-    ['^ prec-exclusive-or]
-    ['& prec-and]
-    [('!= '==) prec-equality]
-    [('<= '< '>= '>) prec-relational]
-    [('>> '<<) prec-shift]
-    [('+ '-) prec-additive]
-    [('% '/ '*) prec-multiplicative]
-    [('PERIOD '->) prec-pointer-to-member]))
-
-
+;; TODO
 ;; OK, I only care about the whole thing inside the expr, so I'm going
 ;; to use skip-until trick
 (define (parse-expr-statement ll)
   ;; (parse-assignment-expression ll)
   ;; (parse-rhs-of-binary-expression ll prec-comma)
   (skip-until ll 'semi-colon))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Expressions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; (define (parse-assignment-expression ll) #f)
-;; (define (parse-rhs-of-binary-expression ll prec) #f)
+(define (parse-constant-expression ll)
+  (parse-conditional-expression ll))
 
 (define (parse-expression ll)
   (parse-assignment-expression ll)
-  (parse-rhs-of-binary-expression ll prec-comma))
+  (when (try-consume ll 'comma)
+    (parse-expression ll)))
+
 (define (parse-assignment-expression ll)
+  (parse-conditional-expression ll)
+  (case (token-name (ll 0))
+    [('= '*= '/= '%= '+= '-= '<<= '>>= '&= '^= 'or-assign)
+     (begin
+       (ll 'consume)
+       (parse-assignment-expression ll))]
+    [else #f]))
+
+(define (parse-conditional-expression ll)
+  (parse-logical-or-expression ll)
+  (when (eq? (token-name (ll 0)) '?)
+    (ll 'consume)
+    (parse-expression ll)
+    (ll 'consume)
+    (parse-conditional-expression ll)))
+(define (parse-logical-or-expression ll)
+  (parse-logical-and-expression ll)
+  (when (eq? (token-name (ll 0)) 'or-op)
+    (begin
+      (ll 'consume)
+      (parse-logical-or-expression ll))))
+(define (parse-logical-and-expression ll)
+  (parse-inclusive-or-expression ll)
+  (when (eq? (token-name (ll 0)) '&&)
+    (ll 'consume)
+    (parse-logical-and-expression ll)))
+(define (parse-inclusive-or-expression ll)
+  (parse-exclusive-or-expression ll)
+  (when (eq? (token-name (ll 0)) 'or)
+    (ll 'consume)
+    (parse-inclusive-or-expression ll)))
+(define (parse-exclusive-or-expression ll)
+  (parse-and-expression ll)
+  (when (eq? (token-name (ll 0)) '^)
+    (ll 'consume)
+    (parse-exclusive-or-expression ll)))
+(define (parse-and-expression ll)
+  (parse-equality-expression ll)
+  (when (eq? (token-name (ll 0)) '&)
+    (ll 'consume)
+    (parse-and-expression ll)))
+(define (parse-equality-expression ll)
+  (parse-relational-expression ll)
+  (when (or (eq? (token-name (ll 0)) '==)
+            (eq? (token-name (ll 0)) '!=))
+    (ll 'consume)
+    (parse-equality-expression ll)))
+(define (parse-relational-expression ll)
+  (parse-shift-expression ll)
+  (when (member (token-name (ll 0)) '(< > <= >=))
+    (ll 'consume)
+    (parse-relational-expression ll)))
+(define (parse-shift-expression ll)
+  (parse-additive-expression ll)
+  (when (member (token-name (ll 0)) '(<< >>))
+    (ll 'consume)
+    (parse-shift-expression ll)))
+(define (parse-additive-expression ll)
+  (parse-multiplicative-expression ll)
+  (when (member (token-name (ll 0)) '(+ -))
+    (ll 'consume)
+    (parse-additive-expression ll)))
+(define (parse-multiplicative-expression ll)
   (parse-cast-expression ll)
-  (parse-rhs-of-binary-expression ll prec-assignment))
-
-;; parse a binary expression, that has a precedence of at least
-;; min-prec
-(define (parse-rhs-of-binary-expression ll min-prec)
-  (let ([next-prec (get-bin-op-precedence (ll 0))])
-    (let loop ([dummy #f])
-      (when (>= next-prec min-prec)
-        ;; ternary operator
-        (when (eq? next-prec prec-conditional)
-          ;; middle
-          (parse-expression ll))
-        ;; rhs
-        (parse-cast-expression ll)
-        (let ([next-next-prec (get-bin-op-precedence (ll 1))])
-          (when (or (< next-prec next-next-prec)
-                    (and (= next-prec next-next-prec)
-                         ;; next-prec is right associative
-                         (or (eq? next-prec prec-conditional)
-                             (eq? next-prec prec-assignment))))
-            (parse-rhs-of-binary-expression)))
-        (loop #f)))))
-
-
-;; TODO in clang, this is actually either a cast, or a unary expr
-;;
-;; In clang, it seems to implement:
-;; cast-expression
-;; unary-expression
-;; postfix-expression
-;; primary-expression
-;; Reason to do this:
-;; 1. efficiency
-;; 2. parenthesized expression
-;;
-;; it seems that, in the K&R grammar:
-;; cast-expression ::= unary-expression
-;; cast-expression ::= ( type-name ) cast-expression
-;; while unary-expression has many form, e.g.
-;; unary-expression ::= postfix-expression
-;; FIXME it seems that this function takes a lot of UnConsume steps
+  (when (member (token-name (ll 0)) '(* / %))
+    (ll 'consume)
+    (parse-multiplicative-expression ll)))
 (define (parse-cast-expression ll)
-  (case (token-name (ll 0))
-    ['l-paren (parse-paren-expression ll)]
-    [('i-constant 'f-constant) (consume ll)]
-    ;; primary-expression ::= identifier
-    ;; unqualified-id ::= identifier
-    ;; constant ::= enumeration-constant
-    ;; I didn't find any code I can use
-    ['identifier #f]
-    ['string-literal (consume ll)]
-    [('++ '--) (begin
-                 (consume ll)
-                 (parse-cast-expression ll))]
-    [('& '* '+ '- '~ '!) (begin
-                           (consume ll)
-                           (parse-cast-expression ll))]
-    ;; I think I can simplify this
-    ['sizeof (parse-unary-expr-or-type-trait-expression ll)]
-    ['&& (begin
-           (consume ll)
-           ;; WTF
-           (consume ll))]
-    [else (begin
-            (parse-postfix-expression-suffix ll))]))
-
-;; primary-expression ::= ( expression )
-;; postfix-expression ::= ( type-name ) { initializer-list, }
-;; cast-expression ::= ( type-name ) cast-expression
-(define (parse-paren-expression ll)
-  (consume ll)
-  (if (eq? (token-name (ll 0)) 'l-brace)
-      (parse-compound-statement ll)
-      (if (type-id-in-parens? ll)
-          (begin
-            (parse-specifier-qualifier-list ll)
-            (parse-declarator ll)
-            ;; consume ')'
-            (consume ll)
-            (when (eq? (token-name (ll 0)) 'l-brace)
-              ;; initializer
-              (parse-compound-literal-expression ll))
-            (parse-cast-expression ll))
-          (begin
-            (parse-expression ll))))
-  (consume ll))
-
-
-;; FIXME should be merged with parse-paren-expression
-(define (parse-paren-expr-or-condition ll)
-  (consume ll)
-  (parse-expression ll)
-  (consume ll))
-
-;; we are at the left brace
-;; postfix-expression ::= ( type-name ) { initializer-list }
-;; postfix-expression ::= ( type-name ) { initializer-list , }
-(define (parse-compound-literal-expression ll)
-  (parse-initializer ll))
-
-;; initializer ::= assignment-expression
-;; | { ... }
-(define (parse-initializer ll)
-  (if (eq? (token-name (ll 0)) 'l-brace)
-      (parse-brace-initializer ll)
-      (parse-assignment-expression ll)))
-
-;; initializer ::= { initializer-list }
-;; initializer ::= { initializer-list , }
-;; initializer ::= { }
-(define (parse-brace-initializer ll)
-  (consume ll)
-  (let loop ([dummy #f])
-    (parse-initializer ll)
-    (when (try-consume ll 'comma)
-      (loop #f)))
-  (consume ll))
-
-;; TODO
-(define (type-id-in-parens? ll) #f)
-
-;; This is in parsedecl.cpp
-;; specifier-qualifier-list ::= type-specifier specifier-qualifier-list[opt]
-;; | type-qualifier specifier-qualifier-list[opt
-(define (parse-specifier-qualifier-list ll)
-  ;; FIXME why this is the only one?
-  (parse-declaration-specifiers ll))
-
-;; I should rename it or remove it
-;; unary-expression ::= sizeof unary-expression
-;; | sizeof ( type-name )
-(define (parse-unary-expr-or-type-trait-expression ll)
-  (consume ll)
-  (if (eq? (token-name (ll 0)) 'l-paren)
-      (parse-paren-expression ll)
+  (ll 'track)
+  (if (parse-unary-expression ll)
+      (ll 'pop)
       (begin
-        (parse-specifier-qualifier-list ll)
-        (parse-declarator ll)
-        (parse-cast-expression ll))))
+        (ll 'restore)
+        (when (eq? (token-name (ll 0)) 'l-paren)
+          (ll 'consume)
+          (skip-until ll 'r-paren)
+          (parse-cast-expression ll)))))
 
-;; [] () . -> ++ --
-(define (parse-postfix-expression-suffix ll)
+(define (parse-unary-expression ll)
   (case (token-name (ll 0))
-    ['l-bracket (begin
-                  (consume ll)
-                  (parse-expression ll)
-                  (consume ll))]
-    ['l-paren (begin
-                (consume ll)
-                (parse-expression-list ll)
-                (consume ll))]
-    [('-> 'period) (begin
-                     ;; just consume??
-                     (consume ll))]
-    [('++ '--) (consume ll)]))
+    [(++ --) (begin
+               (ll 'consume)
+               (parse-unary-expression ll))]
+    [(sizeof) (begin
+                (ll 'consume)
+                (ll 'track)
+                (if (parse-unary-expression ll)
+                    (ll 'pop)
+                    (begin
+                      (ll 'restore)
+                      (when (eq? (token-name (ll 0)) 'l-paren)
+                        (ll 'consume)
+                        (skip-until ll 'r-paren)))))]
+    [(& * + - ~ !) (begin
+                     (ll 'consume)
+                     (parse-cast-expression ll))]
+    [else (parse-postfix-expression ll)]))
 
-(define (parse-constant-expression ll)
-  (parse-cast-expression ll)
-  (parse-rhs-of-binary-expression ll))
+;; TODO (typename) {initializer-list}
+(define (parse-postfix-expression ll)
+  (parse-primary-expression ll)
+  (case (token-name (ll 0))
+    [(l-bracket) (begin
+                   (ll 'consume)
+                   (parse-expression ll)
+                   (ll 'consume))]
+    [(l-paren) (begin
+                 (ll 'consume)
+                 (skip-until ll 'r-paren)
+                 (ll 'consume))]
+    [(period ->) (begin
+                   (ll 'consume)
+                   (ll 'consume))]
+    [(++ --) (ll 'consume)]))
 
-
-
-;; argument-expression-list ::= argument-expression-list, argument-expression
-(define (parse-expression-list ll)
-  (let loop ([dummy #f])
-    (parse-assignment-expression ll)
-    (when (eq? (token-name (ll 0)) 'comma)
-      (loop #f))))
-
-
-
-
-
-
-
-
+(define (parse-primary-expression ll)
+  (case (token-name (ll 0))
+    [(identifier i-constant f-constant string-literal) (ll 'consume)]
+    [(l-paren) (begin
+                 (ll 'consume)
+                 (parse-expression ll)
+                 (ll 'consume))]))
 
 
 
