@@ -320,109 +320,127 @@
   (when (try-consume ll 'comma)
     (parse-expression ll)))
 
+
+;; ::= conditional-expression
+;; :: unary-expression assignment-operator assignment-expression
+;;
+;; Clang divote from the K&R grammar to take unary-expression as
+;; conditional-expression, for consistency. After all, the reason to
+;; use unary-expression is to specify the lhs should be
+;; assignable. This can be checked in semantic pass. For Helium, this
+;; is even less important, since Helium tends not to break down
+;; expression
 (define (parse-assignment-expression ll)
   (println "parse-assignment-expression")
-  (parse-conditional-expression ll)
-  (case (token-name (ll 0))
-    [('= '*= '/= '%= '+= '-= '<<= '>>= '&= '^= 'or-assign)
-     (begin
-       (ll 'consume)
-       (parse-assignment-expression ll))]
-    [else #f]))
+  (let ([lhs (parse-conditional-expression ll)])
+    (if (member (token-name (ll 0))
+                '(= *= /= %= += -= <<= >>= &= ^= or-assign))
+        (let ([op (ll 'consume)])
+          (expr:assign lhs op (parse-assignment-expression ll)))
+        lhs)))
 
+;; ternary expression ::= lhs ? mid : 3rd
 (define (parse-conditional-expression ll)
   (println "parse-conditional-expression")
-  (parse-logical-or-expression ll)
-  (when (eq? (token-name (ll 0)) '?)
-    (ll 'consume)
-    (parse-expression ll)
-    (ll 'consume)
-    (parse-conditional-expression ll)))
+  (let ([lhs (parse-logical-or-expression ll)])
+    (if (eq? (token-name (ll 0)) '?)
+        (let ([? (ll 'consume)]
+              [mid (parse-expression ll)]
+              [: (ll 'consume)]
+              [3rd (parse-conditional-expression ll)])
+          (expr:ternary lhs ? mid : 3rd))
+        lhs)))
+
 (define (parse-logical-or-expression ll)
   (println "parse-logical-or-expression")
-  (parse-logical-and-expression ll)
-  (when (eq? (token-name (ll 0)) 'or-op)
-    (begin
-      (ll 'consume)
-      (parse-logical-or-expression ll))))
+  (let ([lhs (parse-logical-and-expression ll)])
+    (if (eq? (token-name (ll 0)) 'or-op)
+        (let ([op (ll 'consume)]
+              [rhs (parse-logical-or-expression ll)])
+          (expr:or_op lhs op rhs))
+        lhs)))
+
 (define (parse-logical-and-expression ll)
   (println "parse-logical-and-expression")
-  (parse-inclusive-or-expression ll)
-  (when (eq? (token-name (ll 0)) '&&)
-    (ll 'consume)
-    (parse-logical-and-expression ll)))
+  (let ([lhs (parse-inclusive-or-expression ll)])
+    (if (eq? (token-name (ll 0)) '&&)
+        (let ([op (ll 'consume)]
+              [rhs (parse-logical-and-expression ll)])
+          (expr:&& lhs op rhs))
+        lhs)))
+
 (define (parse-inclusive-or-expression ll)
   (println "parse-inclusive-or-expression")
-  (let ([rhs (parse-exclusive-or-expression ll)])
+  (let ([lhs (parse-exclusive-or-expression ll)])
     (if (eq? (token-name (ll 0)) 'or)
         (let ([op (ll 'consume)]
-              [lhs (parse-inclusive-or-expression ll)])
+              [rhs (parse-inclusive-or-expression ll)])
           (expr:or lhs op rhs))
-        rhs)))
+        lhs)))
 (define (parse-exclusive-or-expression ll)
   (println "parse-exclusive-or-expression")
-  (let ([rhs (parse-and-expression ll)])
+  (let ([lhs (parse-and-expression ll)])
     (if (eq? (token-name (ll 0)) '^)
         (let ([op (ll 'consume)]
-              [lhs (parse-exclusive-or-expression ll)])
+              [rhs (parse-exclusive-or-expression ll)])
           (expr:xor lhs op rhs))
-        rhs)))
+        lhs)))
 (define (parse-and-expression ll)
   (println "parse-and-expression")
-  (let ([rhs (parse-equality-expression ll)])
+  (let ([lhs (parse-equality-expression ll)])
     (if (eq? (token-name (ll 0)) '&)
         (let ([op (ll 'consume)]
-              [lhs (parse-and-expression ll)])
+              [rhs (parse-and-expression ll)])
           (expr:and lhs op rhs))
-        rhs)))
+        lhs)))
 (define (parse-equality-expression ll)
   (println "parse-equality-expression")
-  (let ([rhs (parse-relational-expression ll)])
+  (let ([lhs (parse-relational-expression ll)])
     (if (member (token-name (ll 0)) '(== !=))
         (let ([op (ll 'consume)]
-              [lhs (parse-equality-expression ll)])
+              [rhs (parse-equality-expression ll)])
           (expr:equal lhs op rhs))
-        rhs)))
+        lhs)))
 
 (define (parse-relational-expression ll)
   (println "parse-relational-expression")
-  (let ([rhs (parse-shift-expression ll)])
+  (let ([lhs (parse-shift-expression ll)])
     (if (member (token-name (ll 0)) '(< > <= >=))
         (let ([op (ll 'consume)]
-              [lhs (parse-relational-expression ll)])
+              [rhs (parse-relational-expression ll)])
           (expr:rel lhs op rhs))
-        rhs)))
+        lhs)))
 
 ;; << >>
 (define (parse-shift-expression ll)
   (println "parse-shift-expression")
-  (let ([rhs (parse-additive-expression ll)])
+  (let ([lhs (parse-additive-expression ll)])
     (if (member (token-name (ll 0)) '(<< >>))
         (let ([op (ll 'consume)]
-              [lhs (parse-shift-expression ll)])
+              [rhs (parse-shift-expression ll)])
           (expr:shift lhs op rhs))
-        rhs)))
+        lhs)))
 
 ;; +-
 (define (parse-additive-expression ll)
   (println "parse-additive-expression")
-  (let ([rhs (parse-multiplicative-expression ll)])
+  (let ([lhs (parse-multiplicative-expression ll)])
     (if (member (token-name (ll 0)) '(+ -))
         (let ([op (ll 'consume)]
-              [lhs (parse-additive-expression ll)])
+              [rhs (parse-additive-expression ll)])
           (expr:add lhs op rhs))
-        rhs)))
+        lhs)))
 
 ;; ::= cast-expression
 ;; ::= mul * / % cast-expression
 (define (parse-multiplicative-expression ll)
   (println "parse-multiplicative-expression")
-  (let ([rhs (parse-cast-expression ll)])
+  (let ([lhs (parse-cast-expression ll)])
     (if (member (token-name (ll 0)) '(* / %))
         (let ([op (ll 'consume)]
-              [lhs (parse-multiplicative-expression ll)])
+              [rhs (parse-multiplicative-expression ll)])
           (expr:mult lhs op rhs))
-        rhs)))
+        lhs)))
 
 ;; ::= unary-expression
 ;; ::= ( type-name ) cast-expression

@@ -18,6 +18,10 @@
 (struct expr:shift expr (lhs op rhs) #:prefab)
 (struct expr:xor expr (lhs op rhs) #:prefab)
 (struct expr:or expr (lhs op rhs) #:prefab)
+(struct expr:&& expr (lhs op rhs) #:prefab)
+(struct expr:or_op expr (lhs op rhs) #:prefab)
+(struct expr:ternary expr (lhs ? mid : 3rd) #:prefab)
+(struct expr:assign expr (lhs op rhs) #:prefab)
 
 (struct expr:ref            expr (id) #:prefab)
 (struct expr:compound       expr (type inits) #:prefab)
@@ -29,7 +33,6 @@
 (struct expr:sizeof         expr (term) #:prefab)
 (struct expr:unop           expr (op expr) #:prefab)
 (struct expr:binop          expr (left op right) #:prefab)
-(struct expr:assign         expr (left op right) #:prefab)
 (struct expr:begin          expr (left right) #:prefab)
 (struct expr:if             expr (test cons alt) #:prefab)
 
