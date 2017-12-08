@@ -1,6 +1,7 @@
 #lang racket
 
 (require parser-tools/lex)
+(require "token.rkt")
 (require "lexer.rkt")
 (require "ast.rkt")
 (require rackunit)
@@ -64,7 +65,7 @@
                        (cadr active-back)
                        (car port-cache))
                    (cadr port-cache)))]
-        [else (raise-syntax-error "Invalid operation for ll-lexer")]))))
+        [else (raise-syntax-error #f "Invalid operation for ll-lexer")]))))
 
 ((lambda (x)
    (case x
@@ -74,15 +75,6 @@
 (define (string->ll str)
   (ll-lexer (string-lexer str)))
 
-(module+ test
-  (let* ([lex (string-lexer "int main() {int a;}")]
-         [ll-lex (ll-lexer lex)])
-    (print (ll-lex 0))
-    (print (ll-lex 0))
-    (print (ll-lex 1))
-    (ll-lex 'consume)
-    (print (ll-lex 0))))
-
 (define (print-all-tokens ll)
   (for ([i (in-naturals)]
         #:break (eq? (token-name (ll 0)) 'eof))
@@ -90,8 +82,6 @@
     (ll 'consume)))
 
 (module+ test
-  (let ([ll (string->ll "int main() {int a;}")])
-    (print-all-tokens ll))
   (let ([ll (string->ll "1 2 3 4 5 6 7 8 9")])
     (check-equal? (token-value (ll 0)) "1")
     (check-equal? (token-value (ll 1)) "2")
@@ -128,11 +118,6 @@
 ;;     (parse lexer)))
 
 
-(module+ test
-  (let* ([lex (string-lexer "int a;")]
-         [ll (ll-lexer lex)])
-    (parse-statement ll)))
-
 
 ;; TODO general checking EOF
 ;; TODO general consume token
@@ -144,7 +129,7 @@
 (define (expect-consume ll target)
   (if (eq? (token-name (ll 0)) target)
       (ll 'consume)
-      (raise-syntax-error "Error")))
+      (raise-syntax-error #f "Error")))
 
 (define (skip-until ll target)
   (case (token-name (ll 0))
@@ -171,13 +156,10 @@
 ;; Statement
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; TODO NOW
 (define (parse-statement ll)
-  (println "parse-statement")
-  (let loop ()
-    (when (parse-statement-or-declaration ll)
-      #f
-      #;(loop)
-      )))
+  (parse-labeled-statement ll)
+  (parse-compound-statement ll))
 
 (define (parse-statement-or-declaration ll)
   (println "parse-statement-or-declaration")
@@ -312,16 +294,22 @@
   ;; (parse-assignment-expression ll)
   ;; (parse-rhs-of-binary-expression ll prec-comma)
   (skip-until ll 'semi-colon))
+
+
+
+(module+ test
+  (parse-statement (string->ll "int a;")))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Expressions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (parse-constant-expression ll)
-  (println "parse-constant-expression")
+  ;; (println "parse-constant-expression")
   (parse-conditional-expression ll))
 
 (define (parse-expression ll)
-  (println "parse-expression")
+  ;; (println "parse-expression")
   (for/fold ([res (parse-assignment-expression ll)])
             ([i (in-naturals)]
              #:break (not (eq? (token-name (ll 0)) 'comma)))
@@ -340,7 +328,7 @@
 ;; is even less important, since Helium tends not to break down
 ;; expression
 (define (parse-assignment-expression ll)
-  (println "parse-assignment-expression")
+  ;; (println "parse-assignment-expression")
   (let ([lhs (parse-conditional-expression ll)])
     (if (member (token-name (ll 0))
                 '(= *= /= %= += -= <<= >>= &= ^= or-assign))
@@ -350,7 +338,7 @@
 
 ;; ternary expression ::= lhs ? mid : 3rd
 (define (parse-conditional-expression ll)
-  (println "parse-conditional-expression")
+  ;; (println "parse-conditional-expression")
   (let ([lhs (parse-logical-or-expression ll)])
     (if (eq? (token-name (ll 0)) '?)
         (let ([? (ll 'consume)]
@@ -361,7 +349,7 @@
         lhs)))
 
 (define (parse-logical-or-expression ll)
-  (println "parse-logical-or-expression")
+  ;; (println "parse-logical-or-expression")
   (for/fold ([lhs (parse-logical-and-expression ll)])
             ([i (in-naturals)]
              #:break (not (eq? (token-name (ll 0)) 'or-op)))
@@ -370,7 +358,7 @@
       (expr:or_op lhs op rhs))))
 
 (define (parse-logical-and-expression ll)
-  (println "parse-logical-and-expression")
+  ;; (println "parse-logical-and-expression")
   (for/fold ([lhs (parse-inclusive-or-expression ll)])
             ([i (in-naturals)]
              #:break (not (eq? (token-name (ll 0)) '&&)))
@@ -379,7 +367,7 @@
       (expr:&& lhs op rhs))))
 
 (define (parse-inclusive-or-expression ll)
-  (println "parse-inclusive-or-expression")
+  ;; (println "parse-inclusive-or-expression")
   (for/fold ([lhs (parse-exclusive-or-expression ll)])
             ([i (in-naturals)]
              #:break (not (eq? (token-name (ll 0)) 'or)))
@@ -387,7 +375,7 @@
           [rhs (parse-exclusive-or-expression ll)])
       (expr:or lhs op rhs))))
 (define (parse-exclusive-or-expression ll)
-  (println "parse-exclusive-or-expression")
+  ;; (println "parse-exclusive-or-expression")
   (for/fold ([lhs (parse-and-expression ll)])
             ([i (in-naturals)]
              #:break (not (eq? (token-name (ll 0)) '^)))
@@ -396,7 +384,7 @@
       (expr:xor lhs op rhs))))
 
 (define (parse-and-expression ll)
-  (println "parse-and-expression")
+  ;; (println "parse-and-expression")
   (for/fold ([lhs (parse-equality-expression ll)])
             ([i (in-naturals)]
              #:break (not (eq? (token-name (ll 0)) '&)))
@@ -405,7 +393,7 @@
       (expr:and lhs op rhs))))
 
 (define (parse-equality-expression ll)
-  (println "parse-equality-expression")
+  ;; (println "parse-equality-expression")
   (for/fold ([lhs (parse-relational-expression ll)])
             ([i (in-naturals)]
              #:break (not (member (token-name (ll 0)) '(== !=))))
@@ -414,7 +402,7 @@
       (expr:equal lhs op rhs))))
 
 (define (parse-relational-expression ll)
-  (println "parse-relational-expression")
+  ;; (println "parse-relational-expression")
   (for/fold ([lhs (parse-shift-expression ll)])
             ([i (in-naturals)]
              #:break (not (member (token-name (ll 0)) '(< > <= >=))))
@@ -423,11 +411,9 @@
       (expr:rel lhs op rhs))))
 
 
-;; (parse-expression (string->ll "a>>b<<c"))
-;; (print-all-tokens (string->ll "a>>b<<c"))
 ;; << >>
 (define (parse-shift-expression ll)
-  (println "parse-shift-expression")
+  ;; (println "parse-shift-expression")
   (for/fold ([lhs (parse-additive-expression ll)])
             ([i (in-naturals)]
              #:break (not (member (token-name (ll 0)) '(<< >>))))
@@ -437,7 +423,7 @@
 
 ;; +-
 (define (parse-additive-expression ll)
-  (println "parse-additive-expression")
+  ;; (println "parse-additive-expression")
   (for/fold ([lhs (parse-multiplicative-expression ll)])
             ([i (in-naturals)]
              #:break (not (member (token-name (ll 0)) '(+ -))))
@@ -448,7 +434,7 @@
 ;; ::= cast-expression
 ;; ::= mul * / % cast-expression
 (define (parse-multiplicative-expression ll)
-  (println "parse-multiplicative-expression")
+  ;; (println "parse-multiplicative-expression")
   (for/fold ([lhs (parse-cast-expression ll)])
             ([i (in-naturals)]
              #:break (not (member (token-name (ll 0)) '(* / %))))
@@ -459,7 +445,7 @@
 ;; ::= unary-expression
 ;; ::= ( type-name ) cast-expression
 (define (parse-cast-expression ll)
-  (println "parse-cast-expression")
+  ;; (println "parse-cast-expression")
   (let ([unary (try-parse parse-unary-expression ll)])
     (if unary unary
         (when (eq? (token-name (ll 0)) 'l-paren)
@@ -472,7 +458,7 @@
 
 
 (define (parse-unary-expression ll)
-  (println "parse-unary-expression")
+  ;; (println "parse-unary-expression")
   (case (token-name (ll 0))
     [(++ --) (let ([op (ll 'consume)])
                (expr:unary op (parse-unary-expression ll)))]
@@ -496,12 +482,12 @@
 
 (define (parse-identifier ll)
   (when (not (eq? (token-name (ll 0)) 'identifier))
-    (raise-syntax-error "Not identifier"))
+    (raise-syntax-error #f "Not identifier"))
   (id (token-value (ll 'consume))))
 
 ;; TODO (typename) {initializer-list}
 (define (parse-postfix-expression ll)
-  (println "parse-postfix-expression")
+  ;; (println "parse-postfix-expression")
   (let ([prim (parse-primary-expression ll)])
     (for/fold ([res prim])
               ([i (in-naturals)]
@@ -525,7 +511,7 @@
                          (let ([post (parse-identifier ll)])
                            (expr:postfix res op post))))]
         [(++ --) (expr:postfix res (ll 'consume))]
-        [else (raise-syntax-error (format "Error ~a" (ll 0)))]))))
+        [else (raise-syntax-error #f (format "Error ~a" (ll 0)))]))))
 
 (define (parse-argument-expression-list ll)
   (parse-assignment-expression ll)
@@ -534,7 +520,7 @@
     (parse-assignment-expression ll)))
 
 (define (parse-primary-expression ll)
-  (println "parse-primary-expression")
+  ;; (println "parse-primary-expression")
   (case (token-name (ll 0))
     [(identifier) (id (token-value (ll 'consume)))]
     [(i-constant) (number (token-value (ll 'consume)))]
@@ -544,15 +530,36 @@
                      [inner (parse-expression ll)]
                      [r-paren (expect-consume ll 'r-paren)])
                  (expr:paren l-paren inner r-paren))]
-    [else (raise-syntax-error (format "Error ~a" (ll 0)))]))
+    [else (raise-syntax-error #f (format "Error ~a" (ll 0)))]))
+
 
 (module+ test
-  (parse-assignment-expression (string->ll "a=b;"))
-  (parse-expression (string->ll "a"))
-  (parse-expression (string->ll "(a)"))
-  (parse-expression (string->ll "a+b+c"))
-  (parse-expression (string->ll "a+b*c*d-x"))
-  (parse-expression (string->ll "a>>b<<c")))
+  (check-equal? (parse-assignment-expression (string->ll "a=b;"))
+                (expr:assign '#s(id "a") (token-= "=") '#s(id "b")))
+  (check-equal? (parse-expression (string->ll "a"))
+                (id "a"))
+  (check-equal? (parse-expression (string->ll "(a)"))
+                (expr:paren (token-l-paren "(") '#s(id "a") (token-r-paren ")")))
+  (check-equal? (parse-expression (string->ll "a+b+c"))
+                (expr:add (expr:add (id "a")
+                                    (token-+ "+")
+                                    (id "b"))
+                          (token-+ "+")
+                          (id "c")))
+  (check-equal? (parse-expression (string->ll "a+b*c*d-x"))
+                (expr:add
+                 (expr:add
+                  (id "a") (token-+ "+")
+                  (expr:mult (expr:mult '#s(id "b") (token-* "*") '#s(id "c"))
+                             (token-* "*")
+                             (id "d")))
+                 (token-- "-")
+                 (id "x")))
+  (check-equal? (parse-expression (string->ll "a>>b<<c"))
+                (expr:shift
+                 (expr:shift (id "a") (token->> ">>") (id "b"))
+                 (token-<< "<<")
+                 (id "c"))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
