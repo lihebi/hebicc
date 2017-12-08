@@ -7,7 +7,7 @@
 
 (struct expr () #:prefab)
 (struct expr:string expr (src) #:prefab)
-(struct expr:paren expr (inner) #:prefab)
+(struct expr:paren expr (l-paren inner r-paren) #:prefab)
 (struct expr:postfix expr (prim op expr) #:prefab)
 (struct expr:unary expr (op expr) #:prefab)
 (struct expr:equal expr (lhs op rhs) #:prefab)
