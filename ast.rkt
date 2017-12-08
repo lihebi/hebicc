@@ -55,24 +55,33 @@
 (struct stmt:return   stmt (kw result semi) #:prefab)
 
 
-(struct decl (src) #:prefab)
+(struct decl () #:prefab)
+(struct decl:decl (specifiers declarators semi) #:prefab)
+(struct decl:paren decl (l inner r) #:prefab)
+(struct decl:param_list decl (l inner r) #:prefab)
+(struct decl:param decl (specifiers declarator) #:prefab)
+(struct decl:declarator decl (pointer direct suffix) #:prefab)
+(struct decl:init_declarator decl (declarator = initializer) #:prefab)
+;; FIXME how should I represent an alternative grammar rule, in general?
+(struct decl:initializer decl (l value r) #:prefab)
 
 (struct decl:typedef           decl (type declarators) #:prefab)
 (struct decl:vars              decl (storage-class type declarators) #:prefab)
 (struct decl:formal            decl (storage-class type declarator) #:prefab)
 (struct decl:function          decl (storage-class inline? return-type declarator preamble body) #:prefab)
-(struct decl:declarator        decl (id type initializer) #:prefab)
+;; (struct decl:declarator        decl (id type initializer) #:prefab)
 (struct decl:member            decl (type declarators) #:prefab)
 (struct decl:member-declarator decl (id type initializer bit-size) #:prefab)
 
-(struct type (src) #:prefab)
+(struct type () #:prefab)
+(struct type:array     type (l inner r) #:prefab)
 
 (struct type:primitive type (name) #:prefab)
 (struct type:ref       type (id) #:prefab)
 (struct type:struct    type (tag fields) #:prefab)
 (struct type:union     type (tag variants) #:prefab)
 (struct type:enum      type (tag variants) #:prefab)
-(struct type:array     type (base static? qualifiers length star?) #:prefab)
+;; (struct type:array     type (base static? qualifiers length star?) #:prefab)
 (struct type:pointer   type (base qualifiers) #:prefab)
 (struct type:function  type (return formals) #:prefab)
 (struct type:qualified type (type qualifiers) #:prefab)

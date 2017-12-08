@@ -24,7 +24,11 @@
             (begin
               (set! res (car port-cache))
               (set! port-cache (append port-cache (list (lexer))))
-              (set! port-cache (cdr port-cache))))
+              (set! port-cache (cdr port-cache))
+              #;
+              (when (eq? (token-name (car port-cache)) 'eof)
+                (println "Warning: reach EOF"))
+              ))
         res))
     (lambda (k)
       (case k
@@ -129,19 +133,25 @@
 (define (expect-consume ll target)
   (if (eq? (token-name (ll 0)) target)
       (ll 'consume)
-      (raise-syntax-error #f "Error")))
+      (raise-syntax-error
+       #f
+       (format "Error expect-consume ~a, but see ~a" target (ll 0)))))
 
 (define (skip-until ll target)
-  (case (token-name (ll 0))
-    [(target) `(,(ll 0))]
-    ['l-paren (cons (ll 0) (skip-until ll 'r-paren))]
-    ['l-bracket (cons (ll 0) (skip-until ll 'r-bracket))]
-    ['l-brace (cons (ll 0) (skip-until ll 'r-brace))]
-    ;; FIXME unbalanced parens
-    ;; semicolon force return
-    ;; ['semi-colon #f]
-    [else (let ([cur (ll 'consume)])
-            (cons (ll 0) (skip-until ll target)))]))
+  ;; returns a list of tokens skipped
+  ;; target can be a single token symbol, or a list of them
+  (if (or (eq? (token-name (ll 0)) target)
+          (member (token-name (ll 0)) target))
+      (list (ll 'consume))
+      (case (token-name (ll 0))
+        ['l-paren (cons (ll 0) (skip-until ll 'r-paren))]
+        ['l-bracket (cons (ll 0) (skip-until ll 'r-bracket))]
+        ['l-brace (cons (ll 0) (skip-until ll 'r-brace))]
+        ;; FIXME unbalanced parens
+        ;; semicolon force return
+        ;; ['semi-colon #f]
+        [else (let ([cur (ll 'consume)])
+                (cons (ll 0) (skip-until ll target)))])))
 
 
 
@@ -524,7 +534,8 @@
                      [inner (parse-expression ll)]
                      [r-paren (expect-consume ll 'r-paren)])
                  (expr:paren l-paren inner r-paren))]
-    [else (raise-syntax-error #f (format "Error ~a" (ll 0)))]))
+    [else (raise-syntax-error #f "Error parse-primary-expression"
+                              (ll 0))]))
 
 
 (module+ test
@@ -560,66 +571,151 @@
 ;; Decl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; corresponding to parse-simple-declaration, the non-simple ones are
-;; for C++
-(define (parse-declaration ll)
-  (println "parse-declaration")
-  (raise-syntax-error #f "TODO parse-declaration")
-  (parse-declaration-specifiers ll)
-  (parse-decl-group ll))
+;; ::= external-declaration | translation-unit external-declaration
+(define (parse-translation-unit ll) #f)
 
-(define (parse-declaration-specifiers ll)
-  (println "parse-declaration-specifiers")
-  (case (token-name (ll 0))
-    ;; storage class specifier
-    ['typedef #f]
-    ['extern #f]
-    ['static #f]
-    ['auto #f]
-    ['register #f]
-    ;; function specifier
-    ['inline #f]
-    ;; type specifier
-    ['short #f]
-    ['long #f]
-    ['signed #f]
-    ['unsigned #f]
-    ['void #f]
-    ['char #f]
-    ['int #f]
-    ['float #f]
-    ['double #f]
-    ['bool #f]
-    ;; class specifier
-    ['struct #f]
-    ['union #f]
-    ;; enum specifier
-    ['enum #f]
-    ;; cv qualifier
-    ['const #f]
-    ['volatile #f]
-    ['restrict #f]
-    ))
-
-(define (parse-decl-group ll)
-  (println "parse-decl-group")
-  (parse-declarator ll)
-  ;; FIXME use conditional to choose between function definition and
-  ;; simple declarator
-  (parse-function-definition ll)
-  (let loop ([comma (try-consume ll 'comma)])
-    (when (not comma)
-      (parse-declarator)
-      (loop (try-consume ll 'comma)))))
+;; ::= function-definition | declaration
+(define (parse-external-declaration ll) #f)
 
 ;; TODO we can actually skip-function-body, for the sake of:
 ;; 1. extract all functions
 ;; 2. extract all typedefs
+;; ::= declaration-specifiers declarator declaration-list_opt compound-stmt
+;; declaration-list ::= declaration-list declaration
 (define (parse-function-definition ll)
-  (print "parse-function-definition")
-  ;; FIXME conditional
-  (parse-knr-param-declarations)
-  (parse-compound-statement-body))
+  (let ([specifiers (parse-declaration-specifiers ll)]
+        [declarator (parse-declarator ll)]
+        [krstyle (for/list ([i (in-naturals)]
+                            #:break (eq? (token-name (ll 0)) 'l-brace))
+                   (parse-declaration ll))]
+        [body (parse-compound-statement ll)])
+    (decl:function specifiers declarator krstyle body)))
+
+;; declarator ::= pointer_opt direct-declarator
+;; direct-declarator ::= identifier | (declarator)
+;; ===== array
+;; direct-declarator ::= direct-declarator[][][]
+;; ===== for function parameters
+;; direct-declarator ::= direct-declarator(parameter-type-list)
+;; direct-declarator ::= direct-declarator(identifier-list_opt)
+(define (parse-declarator ll)
+  (let ([pointer (parse-pointer ll)])
+    (let ([direct (case (token-name (ll 0))
+                    [(identifier) (id (ll 'consume))]
+                    [(l-paren) (let ([l (ll 'consume)]
+                                     [inner (parse-declarator ll)]
+                                     [r (ll 'consume)])
+                                 (decl:paren l inner r))]
+                    [else (raise-syntax-error #f "Error parse-declarator 1"
+                                              (ll 0))])]
+          [suffix (case (token-name (ll 0))
+                    [(l-paren) (let ([lparen (ll 'consume)]
+                                     [params (parse-parameter-list ll)]
+                                     [rparen (ll 'consume)])
+                                 (decl:param_list lparen params rparen))]
+                    [(l-bracket) (for/list ([i (in-naturals)]
+                                            #:when (eq? (token-name (ll 0)) 'l-bracket))
+                                   (let ([l (ll 'consume)]
+                                         [inner (skip-until ll 'r-bracket)]
+                                         [r (ll 'consume)])
+                                     (type:array l inner r)))]
+                    [else #f])])
+      (decl:declarator pointer direct suffix))))
+
+(define (parse-parameter-list ll)
+  (if (member (token-name (ll 1)) '(comma r-paren))
+      ;; parse k&r style
+      (let ([first (id (ll 'consume))])
+        (cons first (for/list ([i (in-naturals)]
+                               #:break (not (eq? (token-name (ll 0)) 'comma)))
+                      (ll 'consume)
+                      (id (ll 'consume)))))
+      ;; parse regular parameters
+      (let ([first (parse-parameter-declaration ll)])
+        (cons first (for/list ([i (in-naturals)]
+                               #:break (not (eq? (token-name (ll 0)) 'comma)))
+                      (ll 'consume)
+                      (parse-parameter-declaration ll))))))
+
+;; parameter-declaration ::= declaration-specifiers declarator
+;; parameter-declaration ::= declaration-specifiers abstract-declarator_opt
+;; abstract-declarator ::= pointer | pointer_opt direct-abstract-declarator
+(define (parse-parameter-declaration ll)
+  (let ([specifiers (parse-declaration-specifiers ll)])
+    (if (member (token-name (ll 0)) '(comma r-paren))
+        (decl:param specifiers #f)
+        (let ([decl (parse-declarator ll)])
+          (decl:param specifiers decl)))))
+
+(module+ test
+  (parse-parameter-list (string->ll "int a, char b"))
+  (parse-declaration (string->ll "int a=8;")))
+
+;; ::= declaration-specifiers init-declarator-list_opt
+(define (parse-declaration ll)
+  (let ([specifiers (parse-declaration-specifiers ll)]
+        [declarators (parse-init-declarator-list ll)]
+        [semi (expect-consume ll 'semi-colon)])
+    (decl:decl specifiers declarators semi)))
+
+
+(define (parse-declaration-specifiers ll)
+  ;; TODO organize this into structure, instead of a list
+  (for/list ([i (in-naturals)]
+             #:break
+             (not
+              (member
+               (token-name (ll 0))
+               (append
+                ;; storage class specifier
+                '(typedef extern static auto register)
+                ;; function specifier
+                '(inline)
+                ;; type specifier
+                ;; FIXME typename
+                '(short long signed unsigned void char int float double bool)
+                ;; class specifier
+                ;; enum specifier
+                '(struct union enum)
+                ;; type qualifier
+                '(const volatile restrict)))))
+    (ll 'consume)))
+
+(define (parse-init-declarator-list ll)
+  (for/fold ([res (list (parse-init-declarator ll))])
+            ([i (in-naturals)]
+             #:break (not (eq? (token-name (ll 0)) 'comma)))
+    (append res (list (parse-init-declarator ll)))))
+
+(define (parse-init-declarator ll)
+  (let ([declarator (parse-declarator ll)])
+    (if (eq? (token-name (ll 0)) '=)
+        (let ([= (ll 'consume)]
+              [initializer (parse-initializer ll)])
+          (decl:init_declarator declarator = initializer))
+        (decl:init_declarator declarator #f #f))))
+
+;; TODO
+(define (parse-initializer ll)
+  (if (eq? (token-name (ll 0)) 'l-brace)
+      (let ([l (ll 'consume)]
+            [inits (skip-until ll 'r-brace)]
+            [r (ll 'consume)])
+        (decl:initializer l inits r))
+      (decl:initializer #f (parse-assignment-expression ll) #f)))
+
+;; pointer ::= * type-qualifier-list_opt
+;; pointer ::= * type-qualifier-list_opt pointer
+;; type-qualifier-list ::= type-qualifier-list type-qualifier
+;; type-qualifier ::= const | restrict | volatile
+(define (parse-pointer ll)
+  (for/list ([i (in-naturals)]
+             #:break (not (member (token-name (ll 0))
+                                  '(* const restrict volatile))))
+    (ll 'consume)))
+
+
+
 
 (define (declarator-specifier? tok)
   (case (token-name tok)
@@ -648,20 +744,6 @@
   ;; finally loop back ...
   (parse-statement ll))
 
-(define (parse-declarator ll)
-  (println "parse-declarator")
-  (println (ll 0))
-  (parse-type-qualifier-list-opt ll)
-  (if (eq? (token-name (ll 0)) '*)
-      ;; pointer
-      (begin
-        (parse-type-qualifier-list-opt ll)
-        ;; recursive parse internal
-        (parse-declarator ll))
-      ;; FIXME
-      (begin
-        (parse-type-qualifier-list-opt ll)
-        (parse-declarator ll))))
 
 ;; TODO What's this??
 (define (parse-type-qualifier-list-opt ll)
