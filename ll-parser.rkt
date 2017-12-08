@@ -156,149 +156,143 @@
 ;; Statement
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; TODO NOW
 (define (parse-statement ll)
-  (parse-labeled-statement ll)
-  (parse-compound-statement ll))
-
-(define (parse-statement-or-declaration ll)
-  (println "parse-statement-or-declaration")
-  (match (token-name (ll 0))
-    ['IDENTIFIER (when (eq? (token-name (ll 1)) ':)
-                   (parse-labeled-statement ll))]
+  (case (token-name (ll 0))
+    [(identifier) (if (eq? (token-name (ll 1)) ':)
+                      (parse-labeled-statement ll)
+                      (parse-expr-statement ll))]
     ;; if is part of declaration specifier
-    [(or 'typedef
-         'extern
-         'static
-         'auto
-         'register
-         'short
-         'long
-         'signed
-         'unsigned
-         'void
-         'char
-         'int
-         'float
-         'double
-         'bool
-         'struct
-         'union
-         'enum
-         'const
-         'volatile
-         'restrict
-         'inline)
+    [(
+      typedef extern static auto register
+      short long signed unsigned void char int float double bool
+      struct union enum
+      const volatile restrict inline)
      (parse-declaration ll)]
-    ['case (parse-case-statement ll)]
-    ['default (parse-default-statement ll)]
-    ['l-brace (parse-compound-statement ll)]
-    ['semi-colon (parse-null-statement ll)]
-    ['if (parse-if-statement ll)]
-    ['switch (parse-switch-statement ll)]
-    ['while (parse-while-statement ll)]
-    ['do (parse-do-statement ll)]
-    ['for (parse-for-statement ll)]
-    ['goto (parse-goto-statement ll)]
-    ['continue (parse-continue-statement ll)]
-    ['break (parse-break-statement ll)]
-    ['return (parse-return-statement ll)]
-    [_ (parse-expr-statement ll)]))
-
-
+    [(case) (parse-case-statement ll)]
+    [(default) (parse-default-statement ll)]
+    [(l-brace) (parse-compound-statement ll)]
+    [(if) (parse-if-statement ll)]
+    [(switch) (parse-switch-statement ll)]
+    [(while) (parse-while-statement ll)]
+    [(do) (parse-do-statement ll)]
+    [(for) (parse-for-statement ll)]
+    [(goto) (parse-goto-statement ll)]
+    [(continue) (parse-continue-statement ll)]
+    [(break) (parse-break-statement ll)]
+    [(return) (parse-return-statement ll)]
+    [else (parse-expr-statement ll)]))
 
 ;; labeled-statement ::= identifier ':' statement
+;; 
 (define (parse-labeled-statement ll)
-  (ll 'consume)
-  (ll 'consume)
-  (parse-statement ll))
+  (let ([label (ll 'consume)]
+        [colon (ll 'consume)]
+        [stmt (parse-statement ll)])
+    (stmt:label label colon stmt)))
 
-;; this actually parse all nested case
 (define (parse-case-statement ll)
-  (let loop ([dummy #f])
-    (when (eq? (token-name (ll 0)) 'case)
-      (parse-constant-expression ll)
-      (ll 'consume)
-      (loop))
-    (parse-statement ll)))
+  (let ([kw (ll 'consume)]
+        [expr (parse-constant-expression ll)]
+        [colon (ll 'consume)]
+        [body (parse-statement ll)])
+    (stmt:case kw expr colon body)))
 
 (define (parse-default-statement ll)
-  (ll 'consume)
-  (parse-statement ll))
+  (let ([kw (ll 'consume)]
+        [body (parse-statement ll)])
+    (stmt:default kw body)))
 
 (define (parse-compound-statement ll)
-  ;; FIXME track the open and close brace
-  (ll 'consume)
-  (let loop ([dummy #f])
-    (when (not (eq? (token-name (ll 0)) 'r-brace))
-      (parse-statement-or-declaration ll))))
+  (let ([lbrace (ll 'consume)])
+    (stmt:comp lbrace
+               (for/list ([i (in-naturals)]
+                          #:break (eq? (token-name (ll 0) 'r-brace)))
+                 (parse-statement ll))
+               (ll 'consume))))
 
-(define (parse-null-statement ll)
-  (ll 'consume))
-
-;; FIXME scope
 (define (parse-if-statement ll)
-  (ll 'consume)                         ; if
-  (ll 'consume)                         ; (
-  (parse-expression ll)
-  (ll 'consume)                         ; )
-  (parse-statement ll)
-  (when (eq? (token-name (ll 0)) 'else)
-    (ll 'consume)                       ; else
-    (parse-statement ll)))
+  (let ([if-kw (ll 'consume)]
+        [lparen (ll 'consume)]
+        [c (parse-expression ll)]
+        [rparen (ll 'consume)]
+        [t (parse-statement ll)])
+    (if (eq? (token-name (ll 0)) 'else)
+        (let ([else-kw (ll 'consume)]
+              [f (parse-statement ll)])
+          (stmt:if if-kw lparen c rparen t else-kw f))
+        (stmt:if if-kw lparen c rparen t #f #f))))
+
 (define (parse-switch-statement ll)
-  (ll 'consume)                         ; switch
-  (ll 'consume)                         ; (
-  (parse-expression ll)
-  (ll 'consume)                         ; )
-  (parse-statement ll))
+  (let ([kw (ll 'consume)]
+        [l (ll 'consume)]
+        [expr (parse-expression ll)]
+        [r (ll 'consume)]
+        [body (parse-statement ll)])
+    (stmt:switch kw l expr r body)))
+
 (define (parse-while-statement ll)
-  (ll 'consume)                         ; while
-  (ll 'consume)                         ; (
-  (parse-expression ll)
-  (ll 'consume)                         ; )
-  (parse-statement ll))
+  (let ([kw (ll 'consume)]
+        [l (ll 'consume)]
+        [test (parse-expression ll)]
+        [r (ll 'consume)]
+        [body (parse-statement ll)])
+    (stmt:while kw l test r body)))
+
 (define (parse-do-statement ll)
-  (ll 'consume)
-  (parse-statement ll)
-  ;; FIXME why use parse-expression here instead of parse-paren-expr-or-condition
-  (parse-expression ll))
+  (let ([do-kw (ll 'consume)]
+        [body (parse-statement ll)]
+        [while-kw (ll 'consume)]
+        [l (ll 'consume)]
+        [test (parse-expression ll)]
+        [r (ll 'consume)])
+    (stmt:do do-kw body while-kw l test r)))
+
 (define (parse-for-statement ll)
-  (ll 'consume)
-  ;; FIXME this might be a simple assignment statement
-  ;; FIXME check emptyness
-  (parse-declaration ll)
-  (parse-expression ll)
-  (parse-expression ll)
-  ;; FIXME GENERAL when consuming, check if it is expected
-  (ll 'consume)
-  (parse-statement ll))
+  (let ([kw (ll 'consume)]
+        [l (ll 'consume)]
+        ;; FIXME conform to K&R
+        ;; will eat first ;
+        [e1 (parse-statement ll)]
+        ;; will eat second ;
+        [e2 (parse-expr-statement ll)]
+        [e3 (if (eq? (token-name (ll 0)) 'r-paren)
+                #f
+                (parse-expression ll))]
+        [r (ll 'consume)]
+        [body (parse-statement ll)])
+    (stmt:for kw l e1 e2 e3 r body)))
 (define (parse-goto-statement ll)
-  (ll 'consume)
-  ;; this identifier should be returned
-  ;; FIXME not an identifier?
-  (when (eq? (token-name (ll 0)) 'identifier)
-    (ll 'consume)))
+  (let ([goto (ll 'consume)]
+        [label (expect-consume ll 'identifier)]
+        [semi (ll 'consume)])
+    (stmt:goto goto label semi)))
 (define (parse-continue-statement ll)
-  (ll 'consume))
+  (stmt:continue (ll 'consume) (ll 'consume)))
 (define (parse-break-statement ll)
-  (ll 'consume))
+  (stmt:break (ll 'consume) (ll 'consume)))
+
+
 (define (parse-return-statement ll)
-  (ll 'consume)
-  (parse-expression ll))
+  (let ([kw (ll 'consume)]
+        [expr (if (eq? (token-name (ll 0)) 'semi)
+                  #f
+                  (parse-expression ll))]
+        [semi (ll 'consume)])
+    (stmt:return kw expr semi)))
 
-;; TODO
-;; OK, I only care about the whole thing inside the expr, so I'm going
-;; to use skip-until trick
 (define (parse-expr-statement ll)
-  ;; (parse-assignment-expression ll)
-  ;; (parse-rhs-of-binary-expression ll prec-comma)
-  (skip-until ll 'semi-colon))
-
+  (if (eq? (token-name (ll 0)) 'semi-colon)
+      (stmt:empty (ll 'consume))
+      (let ([expr (parse-expression ll)]
+            [semi (ll 'consume)])
+        (stmt:expr expr semi))))
 
 
 (module+ test
-  (parse-statement (string->ll "int a;")))
+  (parse-statement (string->ll "if (a>0) a=8;"))
+  (parse-statement (string->ll "aa: goto b;"))
+  (parse-case-statement (string->ll "case 5: goto ddd;"))
+  (parse-return-statement (string->ll "return a;")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Expressions
@@ -570,10 +564,11 @@
 ;; for C++
 (define (parse-declaration ll)
   (println "parse-declaration")
+  (raise-syntax-error #f "TODO parse-declaration")
   (parse-declaration-specifiers ll)
   (parse-decl-group ll))
 
- (define (parse-declaration-specifiers ll)
+(define (parse-declaration-specifiers ll)
   (println "parse-declaration-specifiers")
   (case (token-name (ll 0))
     ;; storage class specifier
@@ -651,7 +646,7 @@
 ;; TODO What is this??
 (define (parse-compound-statement-body ll)
   ;; finally loop back ...
-  (parse-statement-or-declaration ll))
+  (parse-statement ll))
 
 (define (parse-declarator ll)
   (println "parse-declarator")
