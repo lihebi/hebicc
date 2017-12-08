@@ -9,10 +9,10 @@
   t
   (
    identifier i-constant f-constant string-literal func-name sizeof
-   ptr-op inc-op dec-op left-op right-op le-op ge-op eq-op ne-op
-   and-op or-op mul-assign div-assign mod-assign add-assign
-   sub-assign left-assign right-assign and-assign
-   xor-assign or-assign
+   -> ++ -- << >> <= >= == !=
+   && or-op *= /= %= +=
+   -= <<= >>= &=
+   ^= or-assign
    typedef-name enumeration-constant
 
    typedef extern static auto register inline
@@ -137,27 +137,27 @@
          [(:: (:? SP) #\" (:* SChar) #\") (token-string-literal lexeme)]
 
          ["..." (token-ellipsis "...")]
-         [">>=" (token-right-assign ">>=")]
-         ["<<=" (token-left-assign "<<=")]
-         ["+=" (token-add-assign lexeme)]
-         ["-=" (token-sub-assign lexeme)]
-         ["*=" (token-mul-assign lexeme)]
-         ["/=" (token-div-assign lexeme)]
-         ["%=" (token-mod-assign lexeme)]
-         ["&=" (token-and-assign lexeme)]
-         ["^=" (token-xor-assign lexeme)]
+         [">>=" (token->>= ">>=")]
+         ["<<=" (token-<<= "<<=")]
+         ["+=" (token-+= lexeme)]
+         ["-=" (token--= lexeme)]
+         ["*=" (token-*= lexeme)]
+         ["/=" (token-/= lexeme)]
+         ["%=" (token-%= lexeme)]
+         ["&=" (token-&= lexeme)]
+         ["^=" (token-^= lexeme)]
          ["|=" (token-or-assign lexeme)]
-         [">>" (token-right-op lexeme)]
-         ["<<" (token-left-op lexeme)]
-         ["++" (token-inc-op lexeme)]
-         ["--" (token-dec-op lexeme)]
-         ["->" (token-ptr-op lexeme)]
-         ["&&" (token-and-op lexeme)]
+         [">>" (token->> lexeme)]
+         ["<<" (token-<< lexeme)]
+         ["++" (token-++ lexeme)]
+         ["--" (token--- lexeme)]
+         ["->" (token--> lexeme)]
+         ["&&" (token-&& lexeme)]
          ["||" (token-or-op lexeme)]
-         ["<=" (token-le-op lexeme)]
-         [">=" (token-ge-op lexeme)]
-         ["==" (token-eq-op lexeme)]
-         ["!=" (token-ne-op lexeme)]
+         ["<=" (token-<= lexeme)]
+         [">=" (token->= lexeme)]
+         ["==" (token-== lexeme)]
+         ["!=" (token-!= lexeme)]
 
          ;; empty tokens
          [";" (token-semi-colon lexeme)]
@@ -166,8 +166,8 @@
          ["," (token-comma lexeme)]
          [":" (token-: lexeme)]
          ["=" (token-= lexeme)]
-         ["(" (token-l-brace lexeme)]
-         [")" (token-r-brace lexeme)]
+         ["(" (token-l-paren lexeme)]
+         [")" (token-r-paren lexeme)]
          [(:or "[" "<:") (token-l-bracket "[")]
          [(:or "]" ":>") (token-r-bracket "]")]
          ["." (token-period lexeme)]
