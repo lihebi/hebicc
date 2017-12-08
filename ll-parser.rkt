@@ -137,10 +137,14 @@
 ;; TODO general checking EOF
 ;; TODO general consume token
 
-;; FIXME what to return??
 (define (try-consume ll target)
-  (when (eq? (ll 0) target)
+  (when (eq? (token-name (ll 0)) target)
     (ll 'consume)))
+
+(define (expect-consume ll target)
+  (if (eq? (token-name (ll 0)) target)
+      (ll 'consume)
+      (raise-syntax-error "Error")))
 
 (define (skip-until ll target)
   (case (token-name (ll 0))
@@ -158,7 +162,7 @@
 
 (define (try-parse func ll)
   (ll 'track)
-  (let ([res (apply func ll)])
+  (let ([res (#%app func ll)])
     (if res
         (ll 'pop)
         (ll 'restore))
@@ -313,12 +317,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (parse-constant-expression ll)
+  (println "parse-constant-expression")
   (parse-conditional-expression ll))
 
 (define (parse-expression ll)
-  (parse-assignment-expression ll)
-  (when (try-consume ll 'comma)
-    (parse-expression ll)))
+  (println "parse-expression")
+  (for/fold ([res (parse-assignment-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (eq? (token-name (ll 0)) 'comma)))
+    (let ([comma (ll 'consume)])
+      (expr res comma
+            (parse-assignment-expression ll)))))
 
 
 ;; ::= conditional-expression
@@ -353,100 +362,105 @@
 
 (define (parse-logical-or-expression ll)
   (println "parse-logical-or-expression")
-  (let ([lhs (parse-logical-and-expression ll)])
-    (if (eq? (token-name (ll 0)) 'or-op)
-        (let ([op (ll 'consume)]
-              [rhs (parse-logical-or-expression ll)])
-          (expr:or_op lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-logical-and-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (eq? (token-name (ll 0)) 'or-op)))
+    (let ([op (ll 'consume)]
+          [rhs (parse-logical-and-expression ll)])
+      (expr:or_op lhs op rhs))))
 
 (define (parse-logical-and-expression ll)
   (println "parse-logical-and-expression")
-  (let ([lhs (parse-inclusive-or-expression ll)])
-    (if (eq? (token-name (ll 0)) '&&)
-        (let ([op (ll 'consume)]
-              [rhs (parse-logical-and-expression ll)])
-          (expr:&& lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-inclusive-or-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (eq? (token-name (ll 0)) '&&)))
+    (let ([op (ll 'consume)]
+          [rhs (parse-inclusive-or-expression ll)])
+      (expr:&& lhs op rhs))))
 
 (define (parse-inclusive-or-expression ll)
   (println "parse-inclusive-or-expression")
-  (let ([lhs (parse-exclusive-or-expression ll)])
-    (if (eq? (token-name (ll 0)) 'or)
-        (let ([op (ll 'consume)]
-              [rhs (parse-inclusive-or-expression ll)])
-          (expr:or lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-exclusive-or-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (eq? (token-name (ll 0)) 'or)))
+    (let ([op (ll 'consume)]
+          [rhs (parse-exclusive-or-expression ll)])
+      (expr:or lhs op rhs))))
 (define (parse-exclusive-or-expression ll)
   (println "parse-exclusive-or-expression")
-  (let ([lhs (parse-and-expression ll)])
-    (if (eq? (token-name (ll 0)) '^)
-        (let ([op (ll 'consume)]
-              [rhs (parse-exclusive-or-expression ll)])
-          (expr:xor lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-and-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (eq? (token-name (ll 0)) '^)))
+    (let ([op (ll 'consume)]
+          [rhs (parse-and-expression ll)])
+      (expr:xor lhs op rhs))))
+
 (define (parse-and-expression ll)
   (println "parse-and-expression")
-  (let ([lhs (parse-equality-expression ll)])
-    (if (eq? (token-name (ll 0)) '&)
-        (let ([op (ll 'consume)]
-              [rhs (parse-and-expression ll)])
-          (expr:and lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-equality-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (eq? (token-name (ll 0)) '&)))
+    (let ([op (ll 'consume)]
+          [rhs (parse-equality-expression ll)])
+      (expr:and lhs op rhs))))
+
 (define (parse-equality-expression ll)
   (println "parse-equality-expression")
-  (let ([lhs (parse-relational-expression ll)])
-    (if (member (token-name (ll 0)) '(== !=))
-        (let ([op (ll 'consume)]
-              [rhs (parse-equality-expression ll)])
-          (expr:equal lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-relational-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (member (token-name (ll 0)) '(== !=))))
+    (let ([op (ll 'consume)]
+          [rhs (parse-relational-expression ll)])
+      (expr:equal lhs op rhs))))
 
 (define (parse-relational-expression ll)
   (println "parse-relational-expression")
-  (let ([lhs (parse-shift-expression ll)])
-    (if (member (token-name (ll 0)) '(< > <= >=))
-        (let ([op (ll 'consume)]
-              [rhs (parse-relational-expression ll)])
-          (expr:rel lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-shift-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (member (token-name (ll 0)) '(< > <= >=))))
+    (let ([op (ll 'consume)]
+          [rhs (parse-shift-expression ll)])
+      (expr:rel lhs op rhs))))
 
+
+;; (parse-expression (string->ll "a>>b<<c"))
+;; (print-all-tokens (string->ll "a>>b<<c"))
 ;; << >>
 (define (parse-shift-expression ll)
   (println "parse-shift-expression")
-  (let ([lhs (parse-additive-expression ll)])
-    (if (member (token-name (ll 0)) '(<< >>))
-        (let ([op (ll 'consume)]
-              [rhs (parse-shift-expression ll)])
-          (expr:shift lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-additive-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (member (token-name (ll 0)) '(<< >>))))
+    (let ([op (ll 'consume)]
+          [rhs (parse-additive-expression ll)])
+      (expr:shift lhs op rhs))))
 
 ;; +-
 (define (parse-additive-expression ll)
   (println "parse-additive-expression")
-  (let ([lhs (parse-multiplicative-expression ll)])
-    (if (member (token-name (ll 0)) '(+ -))
-        (let ([op (ll 'consume)]
-              [rhs (parse-additive-expression ll)])
-          (expr:add lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-multiplicative-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (member (token-name (ll 0)) '(+ -))))
+    (let ([op (ll 'consume)]
+          [rhs (parse-multiplicative-expression ll)])
+      (expr:add lhs op rhs))))
 
 ;; ::= cast-expression
 ;; ::= mul * / % cast-expression
 (define (parse-multiplicative-expression ll)
   (println "parse-multiplicative-expression")
-  (let ([lhs (parse-cast-expression ll)])
-    (if (member (token-name (ll 0)) '(* / %))
-        (let ([op (ll 'consume)]
-              [rhs (parse-multiplicative-expression ll)])
-          (expr:mult lhs op rhs))
-        lhs)))
+  (for/fold ([lhs (parse-cast-expression ll)])
+            ([i (in-naturals)]
+             #:break (not (member (token-name (ll 0)) '(* / %))))
+    (let ([op (ll 'consume)]
+          [rhs (parse-cast-expression ll)])
+      (expr:mult lhs op rhs))))
 
 ;; ::= unary-expression
 ;; ::= ( type-name ) cast-expression
 (define (parse-cast-expression ll)
   (println "parse-cast-expression")
-  (let ([unary (try-parse #'parse-unary-expression ll)])
+  (let ([unary (try-parse parse-unary-expression ll)])
     (if unary unary
         (when (eq? (token-name (ll 0)) 'l-paren)
           (let ([l-paren (ll 'consume)]
@@ -489,27 +503,29 @@
 (define (parse-postfix-expression ll)
   (println "parse-postfix-expression")
   (let ([prim (parse-primary-expression ll)])
-    (for ([i (in-naturals)]
-          #:break (not (member (token-name (ll 0))
-                               '(l-bracket l-paren period -> ++ --))))
+    (for/fold ([res prim])
+              ([i (in-naturals)]
+               #:break (not (member (token-name (ll 0))
+                                    '(l-bracket l-paren period -> ++ --))))
       (case (token-name (ll 0))
         [(l-bracket) (begin
                        
                        (let ([l-bracket (ll 'consume)]
                              [post (parse-expression ll)]
                              [r-bracket (ll 'consume)])
-                         (expr:postfix prim l-bracket post r-bracket)))]
+                         (expr:postfix res l-bracket post r-bracket)))]
         [(l-paren) (begin
                      (let ([l-paren (ll 'consume)])
                        (when (not (eq? (token-name (ll 0)) 'r-paren))
                          (let ([arg-list (parse-argument-expression-list ll)]
                                [r-paren (ll 'consume)])
-                           (expr:postfix prim l-paren arg-list r-paren)))))]
+                           (expr:postfix res l-paren arg-list r-paren)))))]
         [(period ->) (begin
                        (let ([op (ll 'consume)])
                          (let ([post (parse-identifier ll)])
-                           (expr:postfix prim op post))))]
-        [(++ --) (expr:postfix prim (ll 'consume))]))))
+                           (expr:postfix res op post))))]
+        [(++ --) (expr:postfix res (ll 'consume))]
+        [else (raise-syntax-error (format "Error ~a" (ll 0)))]))))
 
 (define (parse-argument-expression-list ll)
   (parse-assignment-expression ll)
@@ -524,18 +540,19 @@
     [(i-constant) (number (token-value (ll 'consume)))]
     [(f-constant) (number (token-value (ll 'consume)))]
     [(string-literal) (expr:string (token-value (ll 'consume)))]
-    [(l-paren) (begin
-                 (ll 'consume)
-                 (let ([inner (parse-expression ll)])
-                   (ll 'consume)
-                   (expr:paren inner)))]))
-
-
+    [(l-paren) (let ([l-paren (ll 'consume)]
+                     [inner (parse-expression ll)]
+                     [r-paren (expect-consume ll 'r-paren)])
+                 (expr:paren l-paren inner r-paren))]
+    [else (raise-syntax-error (format "Error ~a" (ll 0)))]))
 
 (module+ test
   (parse-assignment-expression (string->ll "a=b;"))
-  (parse-primary-expression (string->ll "a"))
-  (parse-primary-expression (string->ll "(a)")))
+  (parse-expression (string->ll "a"))
+  (parse-expression (string->ll "(a)"))
+  (parse-expression (string->ll "a+b+c"))
+  (parse-expression (string->ll "a+b*c*d-x"))
+  (parse-expression (string->ll "a>>b<<c")))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
