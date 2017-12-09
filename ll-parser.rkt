@@ -130,18 +130,19 @@
 ;;   (let ([lexer (string-lexer str)])
 ;;     (parse lexer)))
 
-
-
 ;; TODO general checking EOF
 ;; TODO general consume token
 
 (define (try-consume ll target)
-  (when (eq? (token-name (ll 0)) target)
-    (ll 'consume)))
+  (if (or (eq? (token-name (ll 0)) target)
+          (and (list? target)
+               (member (token-name (ll 0)) target)))
+      (ll 'consume) #f))
 
 (define (expect-consume ll target)
   (if (or (eq? (token-name (ll 0)) target)
-          (and (list? target) (member (token-name (ll 0)) target)))
+          (and (list? target)
+               (member (token-name (ll 0)) target)))
       (ll 'consume)
       (raise-syntax-error
        #f
@@ -209,20 +210,20 @@
 ;; labeled-statement ::= identifier ':' statement
 ;; 
 (define (parse-labeled-statement ll)
-  (let ([label (ll 'consume)]
-        [colon (ll 'consume)]
+  (let ([label (expect-consume ll 'identifier)]
+        [colon (expect-consume ll ':)]
         [stmt (parse-statement ll)])
     (stmt:label label colon stmt)))
 
 (define (parse-case-statement ll)
-  (let ([kw (ll 'consume)]
+  (let ([kw (expect-consume ll 'case)]
         [expr (parse-constant-expression ll)]
-        [colon (ll 'consume)]
+        [colon (expect-consume ll ':)]
         [body (parse-statement ll)])
     (stmt:case kw expr colon body)))
 
 (define (parse-default-statement ll)
-  (let ([kw (ll 'consume)]
+  (let ([kw (expect-consume ll 'default)]
         [body (parse-statement ll)])
     (stmt:default kw body)))
 
@@ -235,45 +236,45 @@
                (expect-consume ll 'r-brace))))
 
 (define (parse-if-statement ll)
-  (let ([if-kw (ll 'consume)]
-        [lparen (ll 'consume)]
+  (let ([if-kw (expect-consume ll 'if)]
+        [lparen (expect-consume ll 'l-paren)]
         [c (parse-expression ll)]
-        [rparen (ll 'consume)]
+        [rparen (expect-consume ll 'r-paren)]
         [t (parse-statement ll)])
     (if (eq? (token-name (ll 0)) 'else)
-        (let ([else-kw (ll 'consume)]
+        (let ([else-kw (expect-consume ll 'else)]
               [f (parse-statement ll)])
           (stmt:if if-kw lparen c rparen t else-kw f))
         (stmt:if if-kw lparen c rparen t #f #f))))
 
 (define (parse-switch-statement ll)
-  (let ([kw (ll 'consume)]
-        [l (ll 'consume)]
+  (let ([kw (expect-consume ll 'switch)]
+        [l (expect-consume ll 'l-paren)]
         [expr (parse-expression ll)]
-        [r (ll 'consume)]
+        [r (expect-consume ll 'r-paren)]
         [body (parse-statement ll)])
     (stmt:switch kw l expr r body)))
 
 (define (parse-while-statement ll)
-  (let ([kw (ll 'consume)]
-        [l (ll 'consume)]
+  (let ([kw (expect-consume ll 'while)]
+        [l (expect-consume ll 'l-paren)]
         [test (parse-expression ll)]
-        [r (ll 'consume)]
+        [r (expect-consume ll 'r-paren)]
         [body (parse-statement ll)])
     (stmt:while kw l test r body)))
 
 (define (parse-do-statement ll)
-  (let ([do-kw (ll 'consume)]
+  (let ([do-kw (expect-consume ll 'do)]
         [body (parse-statement ll)]
-        [while-kw (ll 'consume)]
-        [l (ll 'consume)]
+        [while-kw (expect-consume ll 'while)]
+        [l (expect-consume ll 'l-paren)]
         [test (parse-expression ll)]
-        [r (ll 'consume)])
+        [r (expect-consume ll 'r-paren)])
     (stmt:do do-kw body while-kw l test r)))
 
 (define (parse-for-statement ll)
-  (let ([kw (ll 'consume)]
-        [l (ll 'consume)]
+  (let ([kw (expect-consume ll 'for)]
+        [l (expect-consume ll 'l-paren)]
         ;; FIXME conform to K&R
         ;; will eat first ;
         [e1 (parse-statement ll)]
@@ -282,33 +283,34 @@
         [e3 (if (eq? (token-name (ll 0)) 'r-paren)
                 #f
                 (parse-expression ll))]
-        [r (ll 'consume)]
+        [r (expect-consume ll 'r-paren)]
         [body (parse-statement ll)])
     (stmt:for kw l e1 e2 e3 r body)))
 (define (parse-goto-statement ll)
-  (let ([goto (ll 'consume)]
+  (let ([goto (expect-consume ll 'goto)]
         [label (expect-consume ll 'identifier)]
-        [semi (ll 'consume)])
+        [semi (expect-consume ll 'semi-colon)])
     (stmt:goto goto label semi)))
 (define (parse-continue-statement ll)
-  (stmt:continue (ll 'consume) (ll 'consume)))
+  (stmt:continue (expect-consume ll 'continue)
+                 (expect-consume ll 'semi-colon)))
 (define (parse-break-statement ll)
-  (stmt:break (ll 'consume) (ll 'consume)))
+  (stmt:break (expect-consume ll 'break) (expect-consume ll 'semi-colon)))
 
 
 (define (parse-return-statement ll)
-  (let ([kw (ll 'consume)]
+  (let ([kw (expect-consume ll 'return)]
         [expr (if (eq? (token-name (ll 0)) 'semi)
                   #f
                   (parse-expression ll))]
-        [semi (ll 'consume)])
+        [semi (expect-consume ll 'semi-colon)])
     (stmt:return kw expr semi)))
 
 (define (parse-expr-statement ll)
   (if (eq? (token-name (ll 0)) 'semi-colon)
-      (stmt:empty (ll 'consume))
+      (stmt:empty (expect-consume ll 'semi-colon))
       (let ([expr (parse-expression ll)]
-            [semi (ll 'consume)])
+            [semi (expect-consume ll 'semi-colon)])
         (stmt:expr expr semi))))
 
 
@@ -331,7 +333,7 @@
   (for/fold ([res (parse-assignment-expression ll)])
             ([i (in-naturals)]
              #:break (not (eq? (token-name (ll 0)) 'comma)))
-    (let ([comma (ll 'consume)])
+    (let ([comma (expect-consume ll 'comma)])
       (expr res comma
             (parse-assignment-expression ll)))))
 
@@ -348,132 +350,83 @@
 (define (parse-assignment-expression ll)
   ;; (println "parse-assignment-expression")
   (let ([lhs (parse-conditional-expression ll)])
-    (if (member (token-name (ll 0))
-                '(= *= /= %= += -= <<= >>= &= ^= or-assign))
-        (let ([op (ll 'consume)])
-          (expr:assign lhs op (parse-assignment-expression ll)))
-        lhs)))
+    (let ([op (try-consume
+               ll '(= *= /= %= += -= <<= >>= &= ^= or-assign))])
+      (if op (expr:assign lhs op (parse-assignment-expression ll)) lhs))))
 
 ;; ternary expression ::= lhs ? mid : 3rd
 (define (parse-conditional-expression ll)
   ;; (println "parse-conditional-expression")
   (let ([lhs (parse-logical-or-expression ll)])
     (if (eq? (token-name (ll 0)) '?)
-        (let ([? (ll 'consume)]
+        (let ([? (expect-consume ll '?)]
               [mid (parse-expression ll)]
-              [: (ll 'consume)]
+              [: (expect-consume ll ':)]
               [3rd (parse-conditional-expression ll)])
           (expr:ternary lhs ? mid : 3rd))
         lhs)))
 
-(define (parse-logical-or-expression ll)
-  ;; (println "parse-logical-or-expression")
-  (for/fold ([lhs (parse-logical-and-expression ll)])
+
+(define (left-recursive-helper ll child-parser ops constructor)
+  (for/fold ([lhs (#%app child-parser ll)])
             ([i (in-naturals)]
-             #:break (not (eq? (token-name (ll 0)) 'or-op)))
-    (let ([op (ll 'consume)]
-          [rhs (parse-logical-and-expression ll)])
-      (expr:or_op lhs op rhs))))
+             #:break (not (member (token-name (ll 0)) ops)))
+    (let ([op (expect-consume ll ops)]
+          [rhs (child-parser ll)])
+      (constructor lhs op rhs))))
+
+(define (parse-logical-or-expression ll)
+  (left-recursive-helper
+   ll parse-logical-and-expression '(or-op) expr:or_op))
 
 (define (parse-logical-and-expression ll)
-  ;; (println "parse-logical-and-expression")
-  (for/fold ([lhs (parse-inclusive-or-expression ll)])
-            ([i (in-naturals)]
-             #:break (not (eq? (token-name (ll 0)) '&&)))
-    (let ([op (ll 'consume)]
-          [rhs (parse-inclusive-or-expression ll)])
-      (expr:&& lhs op rhs))))
+  (left-recursive-helper
+   ll parse-inclusive-or-expression '(&&) expr:&&))
 
 (define (parse-inclusive-or-expression ll)
-  ;; (println "parse-inclusive-or-expression")
-  (for/fold ([lhs (parse-exclusive-or-expression ll)])
-            ([i (in-naturals)]
-             #:break (not (eq? (token-name (ll 0)) 'or)))
-    (let ([op (ll 'consume)]
-          [rhs (parse-exclusive-or-expression ll)])
-      (expr:or lhs op rhs))))
+  (left-recursive-helper
+   ll parse-exclusive-or-expression '(or) expr:or))
 (define (parse-exclusive-or-expression ll)
-  ;; (println "parse-exclusive-or-expression")
-  (for/fold ([lhs (parse-and-expression ll)])
-            ([i (in-naturals)]
-             #:break (not (eq? (token-name (ll 0)) '^)))
-    (let ([op (ll 'consume)]
-          [rhs (parse-and-expression ll)])
-      (expr:xor lhs op rhs))))
+  (left-recursive-helper
+   ll parse-and-expression '(^) expr:xor))
 
 (define (parse-and-expression ll)
-  ;; (println "parse-and-expression")
-  (for/fold ([lhs (parse-equality-expression ll)])
-            ([i (in-naturals)]
-             #:break (not (eq? (token-name (ll 0)) '&)))
-    (let ([op (ll 'consume)]
-          [rhs (parse-equality-expression ll)])
-      (expr:and lhs op rhs))))
+  (left-recursive-helper
+   ll parse-equality-expression '(&) expr:and))
 
 (define (parse-equality-expression ll)
-  ;; (println "parse-equality-expression")
-  (for/fold ([lhs (parse-relational-expression ll)])
-            ([i (in-naturals)]
-             #:break (not (member (token-name (ll 0)) '(== !=))))
-    (let ([op (ll 'consume)]
-          [rhs (parse-relational-expression ll)])
-      (expr:equal lhs op rhs))))
+  (left-recursive-helper
+   ll parse-relational-expression '(== !=) expr:equal))
 
 (define (parse-relational-expression ll)
-  ;; (println "parse-relational-expression")
-  (for/fold ([lhs (parse-shift-expression ll)])
-            ([i (in-naturals)]
-             #:break (not (member (token-name (ll 0)) '(< > <= >=))))
-    (let ([op (ll 'consume)]
-          [rhs (parse-shift-expression ll)])
-      (expr:rel lhs op rhs))))
+  (left-recursive-helper
+   ll parse-shift-expression '(< > <= >=) expr:rel))
 
-
-;; << >>
 (define (parse-shift-expression ll)
-  ;; (println "parse-shift-expression")
-  (for/fold ([lhs (parse-additive-expression ll)])
-            ([i (in-naturals)]
-             #:break (not (member (token-name (ll 0)) '(<< >>))))
-    (let ([op (ll 'consume)]
-          [rhs (parse-additive-expression ll)])
-      (expr:shift lhs op rhs))))
+  (left-recursive-helper
+   ll parse-additive-expression '(<< >>) expr:shift))
 
-;; +-
 (define (parse-additive-expression ll)
-  ;; (println "parse-additive-expression")
-  (for/fold ([lhs (parse-multiplicative-expression ll)])
-            ([i (in-naturals)]
-             #:break (not (member (token-name (ll 0)) '(+ -))))
-    (let ([op (ll 'consume)]
-          [rhs (parse-multiplicative-expression ll)])
-      (expr:add lhs op rhs))))
+  (left-recursive-helper
+   ll parse-multiplicative-expression '(+ -) expr:add))
 
 ;; ::= cast-expression
 ;; ::= mul * / % cast-expression
 (define (parse-multiplicative-expression ll)
-  ;; (println "parse-multiplicative-expression")
-  (for/fold ([lhs (parse-cast-expression ll)])
-            ([i (in-naturals)]
-             #:break (not (member (token-name (ll 0)) '(* / %))))
-    (let ([op (ll 'consume)]
-          [rhs (parse-cast-expression ll)])
-      (expr:mult lhs op rhs))))
+  (left-recursive-helper
+   ll parse-cast-expression '(* / %) expr:mult))
 
 ;; ::= unary-expression
 ;; ::= ( type-name ) cast-expression
 (define (parse-cast-expression ll)
-  ;; (println "parse-cast-expression")
   (let ([unary (try-parse parse-unary-expression ll)])
     (if unary unary
         (when (eq? (token-name (ll 0)) 'l-paren)
-          (let ([l-paren (ll 'consume)]
+          (let ([l-paren (expect-consume ll 'l-paren)]
                 [type-name (skip-until ll 'r-paren)]
-                [r-paren (ll 'consume)]
+                [r-paren (expect-consume ll 'r-paren)]
                 [inner (parse-cast-expression ll)])
             (expr:cast l-paren type-name r-paren inner))))))
-
-
 
 (define (parse-unary-expression ll)
   ;; (println "parse-unary-expression")
@@ -488,20 +441,15 @@
                     (if res
                         (expr:unary op res)
                         (when (eq? (token-name (ll 0)) 'l-paren)
-                          (let ([l-paren (ll 'consume)]
+                          (let ([l-paren (expect-consume ll 'l-paren)]
                                 [type-name (skip-until ll 'r-paren)]
-                                [r-paren (ll 'consume)])
+                                [r-paren (expect-consume ll 'r-paren)])
                             (expr:unary op l-paren type-name r-paren)))))))]
     ;; ::= unary-operator cast-expression
     [(& * + - ~ !) (let ([op (ll 'consume)])
                      (expr:unary op (parse-cast-expression ll)))]
     ;; ::= postfix-expression
     [else (parse-postfix-expression ll)]))
-
-(define (parse-identifier ll)
-  (when (not (eq? (token-name (ll 0)) 'identifier))
-    (raise-syntax-error #f "Not identifier"))
-  (id (token-value (ll 'consume))))
 
 ;; TODO (typename) {initializer-list}
 (define (parse-postfix-expression ll)
@@ -514,19 +462,19 @@
       (case (token-name (ll 0))
         [(l-bracket) (begin
                        
-                       (let ([l-bracket (ll 'consume)]
+                       (let ([l-bracket (expect-consume ll 'l-bracket)]
                              [post (parse-expression ll)]
-                             [r-bracket (ll 'consume)])
+                             [r-bracket (expect-consume ll 'r-bracket)])
                          (expr:postfix res l-bracket post r-bracket)))]
         [(l-paren) (begin
-                     (let ([l-paren (ll 'consume)])
+                     (let ([l-paren (expect-consume ll 'l-paren)])
                        (when (not (eq? (token-name (ll 0)) 'r-paren))
                          (let ([arg-list (parse-argument-expression-list ll)]
-                               [r-paren (ll 'consume)])
+                               [r-paren (expect-consume ll 'r-paren)])
                            (expr:postfix res l-paren arg-list r-paren)))))]
         [(period ->) (begin
                        (let ([op (ll 'consume)])
-                         (let ([post (parse-identifier ll)])
+                         (let ([post (id (expect-consume ll 'identifier))])
                            (expr:postfix res op post))))]
         [(++ --) (expr:postfix res (ll 'consume))]
         [else (raise-syntax-error #f (format "Error ~a" (ll 0)))]))))
@@ -540,10 +488,10 @@
 (define (parse-primary-expression ll)
   ;; (println "parse-primary-expression")
   (case (token-name (ll 0))
-    [(identifier) (id (token-value (ll 'consume)))]
-    [(i-constant) (number (token-value (ll 'consume)))]
-    [(f-constant) (number (token-value (ll 'consume)))]
-    [(string-literal) (expr:string (token-value (ll 'consume)))]
+    [(identifier) (id (ll 'consume))]
+    [(i-constant) (number (ll 'consume))]
+    [(f-constant) (number (ll 'consume))]
+    [(string-literal) (expr:string (ll 'consume))]
     [(l-paren) (let ([l-paren (ll 'consume)]
                      [inner (parse-expression ll)]
                      [r-paren (expect-consume ll 'r-paren)])
@@ -554,31 +502,37 @@
 
 (module+ test
   (check-equal? (parse-assignment-expression (string->ll "a=b;"))
-                (expr:assign '#s(id "a") (token-= "=") '#s(id "b")))
+                (expr:assign (id (token-identifier "a")) (token-= "=")
+                             (id (token-identifier "b"))))
   (check-equal? (parse-expression (string->ll "a"))
-                (id "a"))
+                (id (token-identifier "a")))
   (check-equal? (parse-expression (string->ll "(a)"))
-                (expr:paren (token-l-paren "(") '#s(id "a") (token-r-paren ")")))
+                (expr:paren (token-l-paren "(") (id (token-identifier "a"))
+                            (token-r-paren ")")))
   (check-equal? (parse-expression (string->ll "a+b+c"))
-                (expr:add (expr:add (id "a")
+                (expr:add (expr:add (id (token-identifier "a"))
                                     (token-+ "+")
-                                    (id "b"))
+                                    (id (token-identifier "b")))
                           (token-+ "+")
-                          (id "c")))
+                          (id (token-identifier "c"))))
   (check-equal? (parse-expression (string->ll "a+b*c*d-x"))
                 (expr:add
                  (expr:add
-                  (id "a") (token-+ "+")
-                  (expr:mult (expr:mult '#s(id "b") (token-* "*") '#s(id "c"))
+                  (id (token-identifier "a")) (token-+ "+")
+                  (expr:mult (expr:mult (id (token-identifier "b"))
+                                        (token-* "*")
+                                        (id (token-identifier "c")))
                              (token-* "*")
-                             (id "d")))
+                             (id (token-identifier "d"))))
                  (token-- "-")
-                 (id "x")))
+                 (id (token-identifier "x"))))
   (check-equal? (parse-expression (string->ll "a>>b<<c"))
                 (expr:shift
-                 (expr:shift (id "a") (token->> ">>") (id "b"))
+                 (expr:shift (id (token-identifier "a"))
+                             (token->> ">>")
+                             (id (token-identifier "b")))
                  (token-<< "<<")
-                 (id "c"))))
+                 (id (token-identifier "c")))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -640,18 +594,18 @@
   (let ([pointer (parse-pointer ll)])
     (let ([direct (case (token-name (ll 0))
                     [(identifier) (id (ll 'consume))]
-                    [(l-paren) (let ([l (ll 'consume)]
+                    [(l-paren) (let ([l (expect-consume ll 'l-paren)]
                                      [inner (parse-declarator ll)]
-                                     [r (ll 'consume)])
+                                     [r (expect-consume ll 'r-paren)])
                                  (decl:paren l inner r))]
                     [else (raise-syntax-error
                            #f (format
                                "parse-declarator expect direct, get ~a"
                                (ll 0)))])]
           [suffix (case (token-name (ll 0))
-                    [(l-paren) (let ([lparen (ll 'consume)]
+                    [(l-paren) (let ([lparen (expect-consume ll 'l-paren)]
                                      [params (parse-parameter-list ll)]
-                                     [rparen (ll 'consume)])
+                                     [rparen (expect-consume ll 'r-paren)])
                                  (decl:param_list lparen params rparen))]
                     [(l-bracket)
                      (for/list ([i (in-naturals)]
@@ -667,16 +621,18 @@
 (define (parse-parameter-list ll)
   (if (member (token-name (ll 1)) '(comma r-paren))
       ;; parse k&r style
-      (let ([first (id (ll 'consume))])
+      (let ([first (id (expect-consume ll 'identifier))])
         (cons first (for/list ([i (in-naturals)]
                                #:break (not (eq? (token-name (ll 0)) 'comma)))
-                      (ll 'consume)
-                      (id (ll 'consume)))))
+                      ;; FIXME track this comma
+                      (expect-consume ll 'comma)
+                      (id (expect-consume ll 'identifier)))))
       ;; parse regular parameters
       (let ([first (parse-parameter-declaration ll)])
         (cons first (for/list ([i (in-naturals)]
                                #:break (not (eq? (token-name (ll 0)) 'comma)))
-                      (ll 'consume)
+                      ;; FIXME track this comma
+                      (expect-consume ll 'comma)
                       (parse-parameter-declaration ll))))))
 
 ;; parameter-declaration ::= declaration-specifiers declarator
@@ -731,7 +687,7 @@
 (define (parse-init-declarator ll)
   (let ([declarator (parse-declarator ll)])
     (if (eq? (token-name (ll 0)) '=)
-        (let ([= (ll 'consume)]
+        (let ([= (expect-consume ll '=)]
               [initializer (parse-initializer ll)])
           (decl:init_declarator declarator = initializer))
         (decl:init_declarator declarator #f #f))))
@@ -740,9 +696,9 @@
 ;;   | { initializer-list , }
 (define (parse-initializer ll)
   (if (eq? (token-name (ll 0)) 'l-brace)
-      (let ([l (ll 'consume)]
+      (let ([l (expect-consume ll 'l-brace)]
             [inits (skip-until ll 'r-brace)]
-            [r (ll 'consume)])
+            [r (expect-consume ll 'r-brace)])
         (decl:initializer l inits r))
       (decl:initializer #f (parse-assignment-expression ll) #f)))
 
