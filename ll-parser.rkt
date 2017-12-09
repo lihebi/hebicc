@@ -218,12 +218,12 @@
     (stmt:default kw body)))
 
 (define (parse-compound-statement ll)
-  (let ([lbrace (ll 'consume)])
+  (let ([lbrace (expect-consume ll 'l-brace)])
     (stmt:comp lbrace
                (for/list ([i (in-naturals)]
-                          #:break (eq? (token-name (ll 0) 'r-brace)))
+                          #:break (eq? (token-name (ll 0)) 'r-brace))
                  (parse-statement ll))
-               (ll 'consume))))
+               (expect-consume ll 'r-brace))))
 
 (define (parse-if-statement ll)
   (let ([if-kw (ll 'consume)]
@@ -577,10 +577,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; ::= external-declaration | translation-unit external-declaration
-(define (parse-translation-unit ll) #f)
+(define (parse-translation-unit ll)
+  (decl:trans_unit
+   (for/list ([i (in-naturals)]
+              #:break (eq? (token-name (ll 0)) 'eof))
+     (parse-external-declaration ll))))
 
 ;; ::= function-definition | declaration
-(define (parse-external-declaration ll) #f)
+(define (parse-external-declaration ll)
+  (if (external-declaration-is-function? ll)
+      (parse-function-definition ll)
+      (parse-declaration ll)))
 
 ;; we can actually skip-function-body, for the sake of:
 ;; 1. extract all functions
@@ -591,10 +598,27 @@
   (let ([specifiers (parse-declaration-specifiers ll)]
         [declarator (parse-declarator ll)]
         [krstyle (for/list ([i (in-naturals)]
-                            #:break (eq? (token-name (ll 0)) 'l-brace))
+                            #:break (eq? (token-name (ll 0))
+                                         'l-brace))
                    (parse-declaration ll))]
+        ;; FIXME maybe just a declaration, not a definition
         [body (parse-compound-statement ll)])
     (decl:function specifiers declarator krstyle body)))
+
+;; ::= declaration-specifiers init-declarator-list_opt
+(define (parse-declaration ll)
+  (let ([specifiers (parse-declaration-specifiers ll)]
+        [declarators (parse-init-declarator-list ll)]
+        [semi (expect-consume ll 'semi-colon)])
+    (decl:decl specifiers declarators semi)))
+
+(define (external-declaration-is-function? ll)
+  (ll 'track)
+  (let ([specifiers (parse-declaration-specifiers ll)]
+        [declarator (parse-declarator ll)])
+    (ll 'restore)
+    (let ([suffix (decl:declarator-suffix declarator)])
+      (if (decl:param_list? suffix) #t #f))))
 
 ;; declarator ::= pointer_opt direct-declarator
 ;; direct-declarator ::= identifier | (declarator)
@@ -659,14 +683,10 @@
 (module+ test
   (parse-parameter-list (string->ll "int a, char b"))
   (parse-declaration (string->ll "int a=8;"))
-  (parse-declaration (string->ll "char **a[], b;")))
+  (parse-declaration (string->ll "char **a[], b;"))
+  (parse-translation-unit
+   (string->ll "int a;char **b[5];void foo() {return a;}")))
 
-;; ::= declaration-specifiers init-declarator-list_opt
-(define (parse-declaration ll)
-  (let ([specifiers (parse-declaration-specifiers ll)]
-        [declarators (parse-init-declarator-list ll)]
-        [semi (expect-consume ll 'semi-colon)])
-    (decl:decl specifiers declarators semi)))
 
 (define (parse-declaration-specifiers ll)
   (for/list ([i (in-naturals)]

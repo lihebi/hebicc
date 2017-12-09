@@ -56,6 +56,7 @@
 
 
 (struct decl () #:prefab)
+(struct decl:trans_unit decl (decls) #:prefab)
 (struct decl:decl (specifiers declarators semi) #:prefab)
 (struct decl:paren decl (l inner r) #:prefab)
 (struct decl:param_list decl (l inner r) #:prefab)
@@ -64,11 +65,12 @@
 (struct decl:init_declarator decl (declarator = initializer) #:prefab)
 ;; FIXME how should I represent an alternative grammar rule, in general?
 (struct decl:initializer decl (l value r) #:prefab)
+(struct decl:function decl (specifiers declarator krstyle body) #:prefab)
 
 (struct decl:typedef           decl (type declarators) #:prefab)
 (struct decl:vars              decl (storage-class type declarators) #:prefab)
 (struct decl:formal            decl (storage-class type declarator) #:prefab)
-(struct decl:function          decl (storage-class inline? return-type declarator preamble body) #:prefab)
+;; (struct decl:function          decl (storage-class inline? return-type declarator preamble body) #:prefab)
 ;; (struct decl:declarator        decl (id type initializer) #:prefab)
 (struct decl:member            decl (type declarators) #:prefab)
 (struct decl:member-declarator decl (id type initializer bit-size) #:prefab)
