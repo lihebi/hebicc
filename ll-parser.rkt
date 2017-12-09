@@ -79,6 +79,9 @@
 (define (string->ll str)
   (ll-lexer (string-lexer str)))
 
+(define (file->ll f)
+  (ll-lexer (file-lexer f)))
+
 (define (print-all-tokens ll)
   (for ([i (in-naturals)]
         #:break (eq? (token-name (ll 0)) 'eof))
@@ -86,6 +89,12 @@
     (ll 'consume)))
 
 (module+ test
+  #;
+  (let ([ll (file->ll "/home/hebi/github/benchmark/craft/grammar/a.c")])
+    (println (ll 0))
+    (print-all-tokens ll))
+  (let ([ll (string->ll "/* this is comment */ int a;")])
+    (print-all-tokens ll))
   (let ([ll (string->ll "1 2 3 4 5 6 7 8 9")])
     (check-equal? (token-value (ll 0)) "1")
     (check-equal? (token-value (ll 1)) "2")

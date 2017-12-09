@@ -4,13 +4,17 @@
 (require "token.rkt")
 (require (prefix-in : parser-tools/lex-sre))
 
-(provide string-lexer get-lexer)
+(provide string-lexer file-lexer get-lexer)
 
 ;; TODO
 (define (comment in)
   #f)
 
 (define-lex-abbrevs
+  (BlockComment (:: "/*" (complement (:: any-string "*/" any-string)) "*/"))
+  (LineComment (:: "//" (:* (complement (:or #\return #\linefeed)))))
+  (Comment (:or BlockComment
+                LineComment))
   (O (:or (:/ "0" "7")))
   (D (:or (:/ "0" "9")))
   (NZ (:or (:/ "1" "9")))
@@ -42,9 +46,9 @@
 
 (define get-lexer
   ;; TODO comment
-  (lexer ["/*" (comment input-port)]
-         [(:: "//" (:* (complement (:or #\return #\linefeed)))) #f]
-         
+  (lexer [Comment (get-lexer input-port)]
+         ;; ["/*" (comment input-port)]
+         ;; [(:: "//" (:* (complement (:or #\return #\linefeed)))) #f]
          ["auto" (token-auto "auto")]
          ["break" (token-break "break")]
          ["case" (token-case "case")]
@@ -164,7 +168,11 @@
          ))
 
 (define (string-lexer str)
-  (let* ([in (open-input-string str)])
+  (let ([in (open-input-string str)])
+    (lambda () (get-lexer in))))
+
+(define (file-lexer f)
+  (let ([in (open-input-file f)])
     (lambda () (get-lexer in))))
 
 (module+ test
