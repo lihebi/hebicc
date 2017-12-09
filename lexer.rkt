@@ -6,10 +6,6 @@
 
 (provide string-lexer file-lexer get-lexer)
 
-;; TODO
-(define (comment in)
-  #f)
-
 (define-lex-abbrevs
   (BlockComment (:: "/*" (complement (:: any-string "*/" any-string)) "*/"))
   (LineComment (:: "//" (:* (complement (:or #\return #\linefeed)))))
@@ -45,7 +41,6 @@
            "\\'" "\\\"" "\\?" "\\\\")))
 
 (define get-lexer
-  ;; TODO comment
   (lexer [Comment (get-lexer input-port)]
          ;; ["/*" (comment input-port)]
          ;; [(:: "//" (:* (complement (:or #\return #\linefeed)))) #f]
@@ -181,154 +176,3 @@
       (when (not (eq? tok 'eof))
         (print tok)
         (loop (mylex))))))
-
-#;
-(define-lex-abbrevs
-  ;; (LineTerminator (:or #\return #\linefeed
-  ;;                      (:: #\return #\linefeed)))
-  (BlockComment (:: "/*" (complement (:: any-string "*/" any-string)) "*/"))
-  (LineComment (:: "//" (:* (complement (:or #\return #\linefeed)))))
-  (Comment (:or BlockComment
-                LineComment))
-  ;; Identifier
-  (Identifier (:: Letter (:* LetterOrDigit)))
-  (Letter (:or (:/ "A" "Z")
-               (:/ "a" "z")
-               "_"))
-  (Digit (:or (:/ "0" "9")))
-  (NonZeroDigit (:/ "1" "9"))
-  (LetterOrDigit (:or Letter Digit))
-  ;; Integer
-  (IntegerSuffix (:* (:or "u" "U" "l" "L")))
-  (IntegerConstant (:: (:or DecimalConstant HexadecimalConstant)
-                       (:? IntegerSuffix)))
-  ;; Allow arbitrary leading 0s, this will support Octal numbers, but
-  ;; also allow invalid numbers
-  (DecimalConstant (:+ Digit))
-  (HexadecimalDigit (:or (:/ "a" "f")
-                         (:/ "A" "F")
-                         (:/ "0" "9")))
-  (HexadecimalConstant (:: "0" (:or "x" "X")
-                           (:+ HexadecimalDigit)))
-  ;; Float
-  (FloatSuffix (:or "f" "F" "l" "L"))
-  (ExponentPart (:: (:or "E" "e")
-                    (:? (:or "+" "-"))
-                    (:+ Digit)))
-  ;; FIXME Would recursive work??
-  (DigitSequence (:+ Digit))
-  (FractionalConstant (:or (:: (:? DigitSequence) #\. DigitSequence)
-                           (:: DigitSequence #\.)))
-  ;; FIXME hex floating constant
-  (FloatConstant (:or
-                  (:: DigitSequence ExponentPart (:? FloatSuffix))
-                  (:: FractionalConstant (:? ExponentPart) (:? FloatSuffix))))
-  (Number (:or IntegerConstant
-               FloatConstant))
-  ;; String
-  ;; keywords
-  (Keyword (:or
-            "auto"
-            "break"
-            "case"
-            "char"
-            "continue"
-            "default"
-            "do"
-            "double"
-            "else"
-            "enum"
-            "extern"
-            "float"
-            "for"
-            "goto"
-            "if"
-            "inline"
-            "int"
-            "long"
-            "register"
-            "restrict"
-            "return"
-            "short"
-            "signed"
-            "sizeof"
-            "static"
-            "struct"
-            "switch"
-            "typedef"
-            "union"
-            "unsigned"
-            "void"
-            "volatile"
-            "while"
-            )))
-
-
-#;
-(define get-token
-  ;; take an input port, return a token
-  ;; FIXME Will it consume it?
-  (lexer-src-pos [(:or "[" "<:") (token-L_BRACKET)]
-                 [(:or "]" ":>") (token-R_BRACKET)]
-                 ["(" (token-L_PAREN)]
-                 [")" (token-R_PAREN)]
-                 [(:or "{" "<%") (token-L_BRACE)]
-                 [(:or "}" "%>") (token-R_BRACE)]
-                 ["." (token-PERIOD)]
-                 ["->" (token-->)]
-                 ["++" (token-++)]
-                 ["--" (token---)]
-                 ["&" (token-&)]
-                 ["*" (token-*)]
-                 ["+" (token-+)]
-                 ["-" (token--)]
-                 ["~" (token-~)]
-                 ["!" (token-!)]
-                 ["/" (token-/)]
-                 ["%" (token-%)]
-                 ["<<" (token-<<)]
-                 [">>" (token->>)]
-                 ["<" (token-<)]
-                 [">" (token->)]
-                 ["<=" (token-<=)]
-                 [">=" (token->=)]
-                 ["==" (token-==)]
-                 ["!=" (token-!=)]
-                 ["^" (token-^)]
-                 ["|" (token-OR)]
-                 ["&&" (token-&&)]
-                 ["||" (token-OR_OP)]
-                 ["?" (token-?)]
-                 [":" (token-:)]
-                 [";" (token-SEMI_COLON)]
-                 ["..." (token-...)]
-                 ["=" (token-=)]
-                 ["*=" (token-*=)]
-                 ["/=" (token-/=)]
-                 ["%=" (token-%=)]
-                 ["+=" (token-+=)]
-                 ["-=" (token--=)]
-                 ["<<=" (token-<<=)]
-                 [">>=" (token->>=)]
-                 ["&=" (token-&=)]
-                 ["^=" (token-^=)]
-                 ["|=" (token-OR_ASSIGN)]
-                 [Keyword (string->symbol lexeme)]
-                 ;; FIXME what to return?
-                 [Comment (return-without-pos (get-token input-port))]
-                 ;; FIXME what to return?
-                 [(:+ WhiteSpace) (return-without-pos (get-token input-port))]
-                 ;; TODO check type
-                 ;; return Identifier or Typename
-                 [Identifier (token-IDENTIFIER lexeme)]
-                 ;; I'm not using string->number, just the raw string
-                 [Number (token-NUMBER lexeme)]
-                 ;; I'm using the raw string, instead of trimming the quotes,
-                 ;; because I want to re-generate code, I'm not trying to
-                 ;; evalute the code
-                 [CharacterConstant (token-CHARACTER_CONSTANT lexeme)]
-                 [StringLiteral (token-STRING_LITERAL lexeme)]
-                 [Comment (token-COMMENT lexeme)]
-                 [(eof) 'eof]))
-
-
