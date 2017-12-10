@@ -42,18 +42,14 @@
   (WS (:or #\space #\tab #\page #\return #\linefeed))
   (CP (:or "u" "U" "L"))
   (SP (:or "u8" "u" "U" "L"))
-  (CChar (:or (complement #\') ES))
-  (SChar (:or (complement #\") ES))
+  (CChar (:or (:~ #\') ES))
+  (SChar (:or (:~ #\") ES))
   ;; TODO octal and hex escape
   (ES (:or "\\a" "\\b" "\\f" "\\n" "\\r" "\\t" "\\v"
            "\\'" "\\\"" "\\?" "\\\\")))
 
 (define get-lexer
-  (lexer [Comment `(comment ,lexeme)
-          #;(get-lexer input-port)
-                  ]
-         ;; ["/*" (comment input-port)]
-         ;; [(:: "//" (:* (complement (:or #\return #\linefeed)))) #f]
+  (lexer [Comment (get-lexer input-port)]
          ["auto" (token-auto "auto")]
          ["break" (token-break "break")]
          ["case" (token-case "case")]
@@ -202,4 +198,8 @@ fjdsl dsjf sdj
 int a;
 "])
     (let ([lex (string-lexer str)])
-      (lexer->list lex))))
+      (lexer->list lex)))
+  (length
+   (lexer->list
+    (file-lexer
+     "/home/hebi/github/benchmark/download/findutils/find/parser.c"))))
