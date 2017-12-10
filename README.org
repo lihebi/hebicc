@@ -3,3 +3,22 @@
 
 - http://www.quut.com/c/ANSI-C-grammar-y.html
 - http://www.quut.com/c/ANSI-C-grammar-l.html
+
+
+* Benchmarks
+
+** findutils
+http://savannah.gnu.org/projects/findutils
+
+#+begin_example
+git clone https://git.savannah.gnu.org/git/findutils.git
+#+end_example
+
+
+** grep
+http://savannah.gnu.org/projects/grep
+
+#+begin_example
+git clone https://git.savannah.gnu.org/git/grep.git
+#+end_example
+

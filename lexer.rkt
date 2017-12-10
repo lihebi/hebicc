@@ -7,10 +7,18 @@
 (provide string-lexer file-lexer get-lexer)
 
 (define-lex-abbrevs
-  (BlockComment (:: "/*" (complement (:: any-string "*/" any-string)) "*/"))
-  (LineComment (:: "//" (:* (complement (:or #\return #\linefeed)))))
+  (BlockComment (:: "/*"
+                    (complement (:: any-string "*/" any-string))
+                    "*/"))
+  (LineComment (:: "//" (:* (:~ (:or #\return #\linefeed)))))
   (Comment (:or BlockComment
                 LineComment))
+  (CondCompile (:: "#if"
+                   (complement (:: any-string "#endif" any-string))
+                   "#endif"))
+  (NewLine (:or #\return #\linefeed
+                (:: #\return #\linefeed)))
+  (ControlLine (:: "#" (:* (:~ (:or #\return #\linefeed)))))
   (O (:or (:/ "0" "7")))
   (D (:or (:/ "0" "9")))
   (NZ (:or (:/ "1" "9")))
@@ -41,7 +49,9 @@
            "\\'" "\\\"" "\\?" "\\\\")))
 
 (define get-lexer
-  (lexer [Comment (get-lexer input-port)]
+  (lexer [Comment `(comment ,lexeme)
+          #;(get-lexer input-port)
+                  ]
          ;; ["/*" (comment input-port)]
          ;; [(:: "//" (:* (complement (:or #\return #\linefeed)))) #f]
          ["auto" (token-auto "auto")]
@@ -158,7 +168,9 @@
          ["|" (token-or lexeme)]
          ["?" (token-? lexeme)]
 
-         [(:+ WS) (get-lexer input-port)]                   ; remove whitespace
+         [(:+ WS) (get-lexer input-port)] ; remove whitespace
+         [CondCompile (get-lexer input-port)]
+         [ControlLine (get-lexer input-port)]
          ;; [any-string 'bad]                ; discard bad characters
          ))
 
@@ -170,9 +182,24 @@
   (let ([in (open-input-file f)])
     (lambda () (get-lexer in))))
 
+(define (lexer->list lex)
+  (for*/list ([i (in-naturals)]
+              [tok (list (lex))]
+              #:break (eq? tok 'eof))
+    tok))
+
 (module+ test
-  (let ([mylex (string-lexer "int main(char *c) {return 0;}")])
-    (let loop ([tok (mylex)])
-      (when (not (eq? tok 'eof))
-        (print tok)
-        (loop (mylex))))))
+  (lexer->list (string-lexer "int main(char *c) {return 0;}"))
+  (let ([str "
+#include <\"hello.h\">\n
+int a;
+#include <hfds>
+#if 0
+int a; fjids fjald ndd
+#elseif
+fjdsl dsjf sdj 
+#endif
+int a;
+"])
+    (let ([lex (string-lexer str)])
+      (lexer->list lex))))
