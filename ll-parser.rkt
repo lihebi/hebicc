@@ -24,11 +24,7 @@
             (begin
               (set! res (car port-cache))
               (set! port-cache (append port-cache (list (lexer))))
-              (set! port-cache (cdr port-cache))
-              #;
-              (when (eq? (token-name (car port-cache)) 'eof)
-                (println "Warning: reach EOF"))
-              ))
+              (set! port-cache (cdr port-cache))))
         res))
     (lambda (k)
       (case k
@@ -84,7 +80,7 @@
 
 (define (print-all-tokens ll)
   (for ([i (in-naturals)]
-        #:break (eq? (token-name (ll 0)) 'eof))
+        #:break (eq? (get-token-name (ll 0)) 'eof))
     (println (ll 0))
     (ll 'consume)))
 
@@ -96,35 +92,35 @@
   (let ([ll (string->ll "/* this is comment */ int a;")])
     (print-all-tokens ll))
   (let ([ll (string->ll "1 2 3 4 5 6 7 8 9")])
-    (check-equal? (token-value (ll 0)) "1")
-    (check-equal? (token-value (ll 1)) "2")
+    (check-equal? (get-token-value (ll 0)) "1")
+    (check-equal? (get-token-value (ll 1)) "2")
     (ll 'consume)
-    (check-equal? (token-value (ll 0)) "2")
-    (check-equal? (token-value (ll 1)) "3")
+    (check-equal? (get-token-value (ll 0)) "2")
+    (check-equal? (get-token-value (ll 1)) "3")
     (ll 'consume)
     (ll 'consume)
-    (check-equal? (token-value (ll 0)) "4")
-    (check-equal? (token-value (ll 1)) "5"))
+    (check-equal? (get-token-value (ll 0)) "4")
+    (check-equal? (get-token-value (ll 1)) "5"))
   (let ([ll (string->ll "1 2 3 4 5 6 7 8 9")])
     (ll 'track)
     (ll 'consume)                       ; 1
     (ll 'consume)                       ; 2
     (ll 'track)
     (ll 'consume)                       ; 3
-    (check-equal? (token-value (ll 0)) "4")
+    (check-equal? (get-token-value (ll 0)) "4")
     (ll 'track)
     (ll 'consume)                       ; 4
     (ll 'consume)                       ; 5
-    (check-equal? (token-value (ll 0)) "6")
+    (check-equal? (get-token-value (ll 0)) "6")
     (ll 'pop)                           ; drop 4 5
-    (check-equal? (token-value (ll 0)) "6")
-    (check-equal? (token-value (ll 1)) "7")
+    (check-equal? (get-token-value (ll 0)) "6")
+    (check-equal? (get-token-value (ll 1)) "7")
     (ll 'restore)                       ; (3) (6 7 ..
-    (check-equal? (token-value (ll 0)) "3")
-    (check-equal? (token-value (ll 1)) "6")
+    (check-equal? (get-token-value (ll 0)) "3")
+    (check-equal? (get-token-value (ll 1)) "6")
     (ll 'restore)
-    (check-equal? (token-value (ll 0)) "1") ; (1 2 3) (6 7 ..
-    (check-equal? (token-value (ll 1)) "2")))
+    (check-equal? (get-token-value (ll 0)) "1") ; (1 2 3) (6 7 ..
+    (check-equal? (get-token-value (ll 1)) "2")))
 
 ;; (define (parse-program str)
 ;;   (let ([lexer (string-lexer str)])
@@ -134,15 +130,15 @@
 ;; TODO general consume token
 
 (define (try-consume ll target)
-  (if (or (eq? (token-name (ll 0)) target)
+  (if (or (eq? (get-token-name (ll 0)) target)
           (and (list? target)
-               (member (token-name (ll 0)) target)))
+               (member (get-token-name (ll 0)) target)))
       (ll 'consume) #f))
 
 (define (expect-consume ll target)
-  (if (or (eq? (token-name (ll 0)) target)
+  (if (or (eq? (get-token-name (ll 0)) target)
           (and (list? target)
-               (member (token-name (ll 0)) target)))
+               (member (get-token-name (ll 0)) target)))
       (ll 'consume)
       (raise-syntax-error
        #f
@@ -151,10 +147,10 @@
 (define (skip-until ll target)
   ;; returns a list of tokens skipped
   ;; target can be a single token symbol, or a list of them
-  (if (or (eq? (token-name (ll 0)) target)
-          (and (list? target) (member (token-name (ll 0)) target)))
+  (if (or (eq? (get-token-name (ll 0)) target)
+          (and (list? target) (member (get-token-name (ll 0)) target)))
       (list)
-      (case (token-name (ll 0))
+      (case (get-token-name (ll 0))
         ['l-paren (cons (ll 'consume) (skip-until ll 'r-paren))]
         ['l-bracket (cons (ll 'consume) (skip-until ll 'r-bracket))]
         ['l-brace (cons (ll 'consume) (skip-until ll 'r-brace))]
@@ -182,8 +178,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (parse-statement ll)
-  (case (token-name (ll 0))
-    [(identifier) (if (eq? (token-name (ll 1)) ':)
+  (case (get-token-name (ll 0))
+    [(identifier) (if (eq? (get-token-name (ll 1)) ':)
                       (parse-labeled-statement ll)
                       (parse-expr-statement ll))]
     ;; if is part of declaration specifier
@@ -231,7 +227,7 @@
   (let ([lbrace (expect-consume ll 'l-brace)])
     (stmt:comp lbrace
                (for/list ([i (in-naturals)]
-                          #:break (eq? (token-name (ll 0)) 'r-brace))
+                          #:break (eq? (get-token-name (ll 0)) 'r-brace))
                  (parse-statement ll))
                (expect-consume ll 'r-brace))))
 
@@ -241,7 +237,7 @@
         [c (parse-expression ll)]
         [rparen (expect-consume ll 'r-paren)]
         [t (parse-statement ll)])
-    (if (eq? (token-name (ll 0)) 'else)
+    (if (eq? (get-token-name (ll 0)) 'else)
         (let ([else-kw (expect-consume ll 'else)]
               [f (parse-statement ll)])
           (stmt:if if-kw lparen c rparen t else-kw f))
@@ -280,7 +276,7 @@
         [e1 (parse-statement ll)]
         ;; will eat second ;
         [e2 (parse-expr-statement ll)]
-        [e3 (if (eq? (token-name (ll 0)) 'r-paren)
+        [e3 (if (eq? (get-token-name (ll 0)) 'r-paren)
                 #f
                 (parse-expression ll))]
         [r (expect-consume ll 'r-paren)]
@@ -300,14 +296,14 @@
 
 (define (parse-return-statement ll)
   (let ([kw (expect-consume ll 'return)]
-        [expr (if (eq? (token-name (ll 0)) 'semi)
+        [expr (if (eq? (get-token-name (ll 0)) 'semi)
                   #f
                   (parse-expression ll))]
         [semi (expect-consume ll 'semi-colon)])
     (stmt:return kw expr semi)))
 
 (define (parse-expr-statement ll)
-  (if (eq? (token-name (ll 0)) 'semi-colon)
+  (if (eq? (get-token-name (ll 0)) 'semi-colon)
       (stmt:empty (expect-consume ll 'semi-colon))
       (let ([expr (parse-expression ll)]
             [semi (expect-consume ll 'semi-colon)])
@@ -332,7 +328,7 @@
   ;; (println "parse-expression")
   (for/fold ([res (parse-assignment-expression ll)])
             ([i (in-naturals)]
-             #:break (not (eq? (token-name (ll 0)) 'comma)))
+             #:break (not (eq? (get-token-name (ll 0)) 'comma)))
     (let ([comma (expect-consume ll 'comma)])
       (expr res comma
             (parse-assignment-expression ll)))))
@@ -358,7 +354,7 @@
 (define (parse-conditional-expression ll)
   ;; (println "parse-conditional-expression")
   (let ([lhs (parse-logical-or-expression ll)])
-    (if (eq? (token-name (ll 0)) '?)
+    (if (eq? (get-token-name (ll 0)) '?)
         (let ([? (expect-consume ll '?)]
               [mid (parse-expression ll)]
               [: (expect-consume ll ':)]
@@ -370,7 +366,7 @@
 (define (left-recursive-helper ll child-parser ops constructor)
   (for/fold ([lhs (#%app child-parser ll)])
             ([i (in-naturals)]
-             #:break (not (member (token-name (ll 0)) ops)))
+             #:break (not (member (get-token-name (ll 0)) ops)))
     (let ([op (expect-consume ll ops)]
           [rhs (child-parser ll)])
       (constructor lhs op rhs))))
@@ -421,7 +417,7 @@
 (define (parse-cast-expression ll)
   (let ([unary (try-parse parse-unary-expression ll)])
     (if unary unary
-        (when (eq? (token-name (ll 0)) 'l-paren)
+        (when (eq? (get-token-name (ll 0)) 'l-paren)
           (let ([l-paren (expect-consume ll 'l-paren)]
                 [type-name (skip-until ll 'r-paren)]
                 [r-paren (expect-consume ll 'r-paren)]
@@ -430,7 +426,7 @@
 
 (define (parse-unary-expression ll)
   ;; (println "parse-unary-expression")
-  (case (token-name (ll 0))
+  (case (get-token-name (ll 0))
     [(++ --) (let ([op (ll 'consume)])
                (expr:unary op (parse-unary-expression ll)))]
     ;; ::= sizeof unary-expression
@@ -440,7 +436,7 @@
                   (let ([res (try-parse #'parse-unary-expression ll)])
                     (if res
                         (expr:unary op res)
-                        (when (eq? (token-name (ll 0)) 'l-paren)
+                        (when (eq? (get-token-name (ll 0)) 'l-paren)
                           (let ([l-paren (expect-consume ll 'l-paren)]
                                 [type-name (skip-until ll 'r-paren)]
                                 [r-paren (expect-consume ll 'r-paren)])
@@ -457,9 +453,9 @@
   (let ([prim (parse-primary-expression ll)])
     (for/fold ([res prim])
               ([i (in-naturals)]
-               #:break (not (member (token-name (ll 0))
+               #:break (not (member (get-token-name (ll 0))
                                     '(l-bracket l-paren period -> ++ --))))
-      (case (token-name (ll 0))
+      (case (get-token-name (ll 0))
         [(l-bracket) (begin
                        
                        (let ([l-bracket (expect-consume ll 'l-bracket)]
@@ -468,7 +464,7 @@
                          (expr:postfix res l-bracket post r-bracket)))]
         [(l-paren) (begin
                      (let ([l-paren (expect-consume ll 'l-paren)])
-                       (when (not (eq? (token-name (ll 0)) 'r-paren))
+                       (when (not (eq? (get-token-name (ll 0)) 'r-paren))
                          (let ([arg-list (parse-argument-expression-list ll)]
                                [r-paren (expect-consume ll 'r-paren)])
                            (expr:postfix res l-paren arg-list r-paren)))))]
@@ -482,12 +478,12 @@
 (define (parse-argument-expression-list ll)
   (parse-assignment-expression ll)
   (for ([i (in-naturals)]
-        #:break (not (eq? (token-name (ll 0)) 'comma)))
+        #:break (not (eq? (get-token-name (ll 0)) 'comma)))
     (parse-assignment-expression ll)))
 
 (define (parse-primary-expression ll)
   ;; (println "parse-primary-expression")
-  (case (token-name (ll 0))
+  (case (get-token-name (ll 0))
     [(identifier) (id (ll 'consume))]
     [(i-constant) (number (ll 'consume))]
     [(f-constant) (number (ll 'consume))]
@@ -501,49 +497,32 @@
 
 
 (module+ test
-  (check-equal? (parse-assignment-expression (string->ll "a=b;"))
-                (expr:assign (id (token-identifier "a")) (token-= "=")
-                             (id (token-identifier "b"))))
-  (check-equal? (parse-expression (string->ll "a"))
-                (id (token-identifier "a")))
-  (check-equal? (parse-expression (string->ll "(a)"))
-                (expr:paren (token-l-paren "(") (id (token-identifier "a"))
-                            (token-r-paren ")")))
-  (check-equal? (parse-expression (string->ll "a+b+c"))
-                (expr:add (expr:add (id (token-identifier "a"))
-                                    (token-+ "+")
-                                    (id (token-identifier "b")))
-                          (token-+ "+")
-                          (id (token-identifier "c"))))
-  (check-equal? (parse-expression (string->ll "a+b*c*d-x"))
-                (expr:add
-                 (expr:add
-                  (id (token-identifier "a")) (token-+ "+")
-                  (expr:mult (expr:mult (id (token-identifier "b"))
-                                        (token-* "*")
-                                        (id (token-identifier "c")))
-                             (token-* "*")
-                             (id (token-identifier "d"))))
-                 (token-- "-")
-                 (id (token-identifier "x"))))
-  (check-equal? (parse-expression (string->ll "a>>b<<c"))
-                (expr:shift
-                 (expr:shift (id (token-identifier "a"))
-                             (token->> ">>")
-                             (id (token-identifier "b")))
-                 (token-<< "<<")
-                 (id (token-identifier "c")))))
+  (parse-assignment-expression (string->ll "a=b;"))
+  (parse-expression (string->ll "a"))
+  (parse-expression (string->ll "(a)"))
+  (parse-expression (string->ll "a+b+c"))
+  (parse-expression (string->ll "a+b*c*d-x"))
+  (parse-expression (string->ll "a>>b<<c")))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Decl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+#;
+(module+ test
+  (begin
+    (parse-translation-unit
+     (ll-lexer
+      (file-lexer
+       "/home/hebi/github/benchmark/download/findutils/find/parser.c")))
+    (void)))
+
 ;; ::= external-declaration | translation-unit external-declaration
 (define (parse-translation-unit ll)
   (decl:trans_unit
    (for/list ([i (in-naturals)]
-              #:break (eq? (token-name (ll 0)) 'eof))
+              #:break (eq? (get-token-name (ll 0)) 'eof))
      (parse-external-declaration ll))))
 
 ;; ::= function-definition | declaration
@@ -561,7 +540,7 @@
   (let ([specifiers (parse-declaration-specifiers ll)]
         [declarator (parse-declarator ll)]
         [krstyle (for/list ([i (in-naturals)]
-                            #:break (eq? (token-name (ll 0))
+                            #:break (eq? (get-token-name (ll 0))
                                          'l-brace))
                    (parse-declaration ll))]
         ;; FIXME maybe just a declaration, not a definition
@@ -592,7 +571,7 @@
 ;; direct-declarator ::= direct-declarator(identifier-list_opt)
 (define (parse-declarator ll)
   (let ([pointer (parse-pointer ll)])
-    (let ([direct (case (token-name (ll 0))
+    (let ([direct (case (get-token-name (ll 0))
                     [(identifier) (id (ll 'consume))]
                     [(l-paren) (let ([l (expect-consume ll 'l-paren)]
                                      [inner (parse-declarator ll)]
@@ -602,14 +581,14 @@
                            #f (format
                                "parse-declarator expect direct, get ~a"
                                (ll 0)))])]
-          [suffix (case (token-name (ll 0))
+          [suffix (case (get-token-name (ll 0))
                     [(l-paren) (let ([lparen (expect-consume ll 'l-paren)]
                                      [params (parse-parameter-list ll)]
                                      [rparen (expect-consume ll 'r-paren)])
                                  (decl:param_list lparen params rparen))]
                     [(l-bracket)
                      (for/list ([i (in-naturals)]
-                                #:break (not (eq? (token-name (ll 0))
+                                #:break (not (eq? (get-token-name (ll 0))
                                                   'l-bracket)))
                        (let ([l (expect-consume ll 'l-bracket)]
                              [inner (skip-until ll 'r-bracket)]
@@ -619,18 +598,18 @@
       (decl:declarator pointer direct suffix))))
 
 (define (parse-parameter-list ll)
-  (if (member (token-name (ll 1)) '(comma r-paren))
+  (if (member (get-token-name (ll 1)) '(comma r-paren))
       ;; parse k&r style
       (let ([first (id (expect-consume ll 'identifier))])
         (cons first (for/list ([i (in-naturals)]
-                               #:break (not (eq? (token-name (ll 0)) 'comma)))
+                               #:break (not (eq? (get-token-name (ll 0)) 'comma)))
                       ;; FIXME track this comma
                       (expect-consume ll 'comma)
                       (id (expect-consume ll 'identifier)))))
       ;; parse regular parameters
       (let ([first (parse-parameter-declaration ll)])
         (cons first (for/list ([i (in-naturals)]
-                               #:break (not (eq? (token-name (ll 0)) 'comma)))
+                               #:break (not (eq? (get-token-name (ll 0)) 'comma)))
                       ;; FIXME track this comma
                       (expect-consume ll 'comma)
                       (parse-parameter-declaration ll))))))
@@ -640,7 +619,7 @@
 ;; abstract-declarator ::= pointer | pointer_opt direct-abstract-declarator
 (define (parse-parameter-declaration ll)
   (let ([specifiers (parse-declaration-specifiers ll)])
-    (if (member (token-name (ll 0)) '(comma r-paren))
+    (if (member (get-token-name (ll 0)) '(comma r-paren))
         (decl:param specifiers #f)
         (let ([decl (parse-declarator ll)])
           (decl:param specifiers decl)))))
@@ -658,7 +637,7 @@
              #:break
              (not
               (member
-               (token-name (ll 0))
+               (get-token-name (ll 0))
                (append
                 ;; storage class specifier
                 '(typedef extern static auto register)
@@ -678,7 +657,7 @@
 (define (parse-init-declarator-list ll)
   (for/fold ([res (list (parse-init-declarator ll))])
             ([i (in-naturals)]
-             #:break (not (eq? (token-name (ll 0)) 'comma)))
+             #:break (not (eq? (get-token-name (ll 0)) 'comma)))
     (expect-consume ll 'comma)
     (append res (list (parse-init-declarator ll)))))
 
@@ -686,7 +665,7 @@
 ;; init-declarator ::= declarator | declarator = initializer
 (define (parse-init-declarator ll)
   (let ([declarator (parse-declarator ll)])
-    (if (eq? (token-name (ll 0)) '=)
+    (if (eq? (get-token-name (ll 0)) '=)
         (let ([= (expect-consume ll '=)]
               [initializer (parse-initializer ll)])
           (decl:init_declarator declarator = initializer))
@@ -695,7 +674,7 @@
 ;; initializer ::= assignment-expression
 ;;   | { initializer-list , }
 (define (parse-initializer ll)
-  (if (eq? (token-name (ll 0)) 'l-brace)
+  (if (eq? (get-token-name (ll 0)) 'l-brace)
       (let ([l (expect-consume ll 'l-brace)]
             [inits (skip-until ll 'r-brace)]
             [r (expect-consume ll 'r-brace)])
@@ -708,6 +687,6 @@
 ;; type-qualifier ::= const | restrict | volatile
 (define (parse-pointer ll)
   (for/list ([i (in-naturals)]
-             #:break (not (member (token-name (ll 0))
+             #:break (not (member (get-token-name (ll 0))
                                   '(* const restrict volatile))))
     (ll 'consume)))
