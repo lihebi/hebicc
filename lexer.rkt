@@ -176,10 +176,12 @@
 
 (define (string-lexer str)
   (let ([in (open-input-string str)])
+    (port-count-lines! in)
     (lambda () (get-lexer in))))
 
 (define (file-lexer f)
   (let ([in (open-input-file f)])
+    (port-count-lines! in)
     (lambda () (get-lexer in))))
 
 (define (lexer->list lex)
