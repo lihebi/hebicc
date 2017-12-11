@@ -6,6 +6,12 @@
 
 (provide string-lexer file-lexer get-lexer get-token-name get-token-value)
 
+;; TODO more typedef names
+;; TODO configuration
+;; TODO by preprocessing
+(define *typedef-names*
+  '(bool))
+
 (define-lex-abbrevs
   (BlockComment (:: "/*"
                     (complement (:: any-string "*/" any-string))
@@ -104,9 +110,9 @@
    ["_Thread_local" (token-thread-local "_Thread_local")]
    ["__func__" (token-func-name "__func__")]
 
-   ;; TODO check-type
-   [(:: L (:* A)) #;(check-type lexeme)
-                  (token-identifier lexeme)]
+   [(:: L (:* A)) (if (member (string->symbol lexeme) *typedef-names*)
+                      (token-typedef-name lexeme)
+                      (token-identifier lexeme))]
    
    [(:: HP (:+ H) (:? IS)) (token-i-constant lexeme)]
    [(:: NZ (:* D) (:? IS)) (token-i-constant lexeme)]
@@ -210,6 +216,7 @@ int a;
 "])
     (let ([lex (string-lexer str)])
       (lexer->list lex)))
+  (lexer->list (string-lexer "int bool a;"))
   (length
    (lexer->list
     (file-lexer

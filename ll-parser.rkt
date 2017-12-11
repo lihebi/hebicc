@@ -509,8 +509,8 @@
 ;; Decl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-#;
 (module+ test
+  ;; TODO NOW
   (begin
     (parse-translation-unit
      (ll-lexer
@@ -629,7 +629,8 @@
   (parse-declaration (string->ll "int a=8;"))
   (parse-declaration (string->ll "char **a[], b;"))
   (parse-translation-unit
-   (string->ll "int a;char **b[5];void foo() {return a;}")))
+   (string->ll "int a;char **b[5];void foo() {return a;}"))
+  (parse-declaration-specifiers (string->ll "typedef long bool signed")))
 
 
 (define (parse-declaration-specifiers ll)
@@ -644,8 +645,9 @@
                 ;; function specifier
                 '(inline)
                 ;; type specifier
-                ;; FIXME typename
                 '(short long signed unsigned void char int float double bool)
+                ;; typename
+                '(typedef-name)
                 ;; class specifier
                 ;; enum specifier
                 '(struct union enum)
