@@ -29,4 +29,4 @@
 
 (define-empty-tokens
   et
-  ())
+  (eof))
