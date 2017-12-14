@@ -5,19 +5,36 @@
 (require parser-tools/lex
          parser-tools/yacc)
 
+
+(module+ test
+  (let ([parser (lr-parser)]
+        [lexer (string-lexer "a=8")])
+    (parser (lambda () (lexer)))))
+
 (define (lr-parser)
   (parser
-   (start TranslationUnit)
+   (start expression
+          #;translation-unit
+          )
    (end eof)
    (src-pos)
    (tokens t et)
    (error (lambda (token-ok? token-name token-value start-pos end-pos)
             (raise-syntax-error #f "Parser Error")))
    (grammar
-    (TODO [() #f])
-    (TranslationUnit [(TODO) #f])
-    (Identifier [(identifier) #f])
 
+    ;; ==============================
+    ;; External definitions
+    ;; ==============================
+    (translation-unit [(external-declaration) #f]
+                      [(translation-unit external-declaration) #f])
+    (external-declaration [(function-definition) #f]
+                          [(declaration) #f])
+    (function-definition [(declaration-specifiers declarator declaration-list? compound-statement) #f])
+    (declaration-list? [() #f]
+                       [(declaration-list) #f])
+    (declaration-list [(declaration) #f]
+                      [(declaration-list declaration) #f])
 
     ;; ==============================
     ;; expressions
@@ -250,4 +267,44 @@
                       [(identifier-list) #f])
     (parameter-list [(parameter-declaration) #f]
                     [(parameter-list comma parameter-declaration) #f])
+
+
+    ;; ==============================
+    ;; Statements
+    ;; ==============================
+
+    (statement [(labeled-statement) #f]
+               [(compound-statement) #f]
+               [(expression-statement) #f]
+               [(selection-statement) #f]
+               [(iteration-statement) #f]
+               [(jump-statement) #f])
+
+    ;; c.rkt has statement-tn, what is that??
+    (labeled-statement [(identifier : statement) #f]
+                       [(case constant-expression : statement) #f]
+                       [(default : statement) #f])
+    (compound-statement [(l-brace block-item-list? r-paren) #f])
+    (block-item-list [(block-item) #f]
+                     [(block-item-list block-item) #f])
+    (block-item [(declaration) #f]
+                [(statement) #f])
+    (expression-statement [(expression? semi-colon) #f])
+    (selection-statement [(if l-paren expression r-paren statement) #f]
+                         [(if l-paren expression r-paren statement else statement) #f]
+                         [(switch l-paren expression r-paren statement) #f])
+    (iteration-statement [(while l-paren expression r-paren statement) #f]
+                         [(do statement while l-paren statement r-paren) #f]
+                         [(for l-paren expression? semi-colon expression? semi-colon expression? r-paren statement) #f]
+                         ;; the first declaration eats the first semi-colon. May incur some trouble here
+                         [(for l-paren declaration expression? semi-colon expression? r-paren statement) #f])
+    (jump-statement [(goto identifier semi-colon) #f]
+                    [(continue semi-colon) #f]
+                    [(break semi-colon) #f]
+                    [(return expression? semi-colon) #f])
+    ;; optional
+    (expression? [() #f]
+                 [(expression) #f])
+    (block-item-list? [() #f]
+                      [(block-item-list) #f])
     )))
