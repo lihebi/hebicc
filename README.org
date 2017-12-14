@@ -22,3 +22,20 @@ http://savannah.gnu.org/projects/grep
 git clone https://git.savannah.gnu.org/git/grep.git
 #+end_example
 
+
+* DONE Alternative
+  CLOSED: [2017-12-14 Thu 12:01]
+
+OK, writing a parser is still hard for me:
+- ll parser requires significant rewrite of grammar rule, and lots of tricks
+- [SOLVED] lr parser has shift/reduce and reduce/reduce conflicts. No idea how
+  to efficiently debug and remove them
+
+So, maybe go back to c.rkt?  It seems that its bug only occurs when
+parsing multiple functions? The contract is violated by a contract in
+lexer state functions.
+1. Can I just parse the single functions one at a time? Test on linux
+   kernel to see if this is true
+2. modify it to remove the lexer state part. I don't need to keep
+   track of typename and variable name
+3. fix the bug, which seems to be hard

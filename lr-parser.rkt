@@ -8,19 +8,25 @@
 
 (module+ test
   (let ([parser (lr-parser)]
-        [lexer (string-lexer "a=8")])
+        [lexer (string-lexer
+                "
+int foo() {if (a) if (b) a=b;else a=b;}")])
     (parser (lambda () (lexer)))))
 
 (define (lr-parser)
   (parser
-   (start expression
-          #;translation-unit
+   (start translation-unit
           )
    (end eof)
    (src-pos)
    (tokens t et)
    (error (lambda (token-ok? token-name token-value start-pos end-pos)
+            (printf "~a ~a ~a ~a ~a ~n" token-ok? token-name token-value start-pos end-pos)
             (raise-syntax-error #f "Parser Error")))
+   ;; resolve dangling else problem
+   (precs (nonassoc r-paren)
+          (nonassoc else))
+   (debug "debug.txt")
    (grammar
 
     ;; ==============================
@@ -197,7 +203,8 @@
 
 
     ;; declarator
-    (declarator [(pointer? direct-declarator) #f])
+    (declarator [(        direct-declarator) #f]
+                [(pointer direct-declarator) #f])
     (abstract-declarator [(pointer) #f]
                          [(direct-abstract-declarator) #f]
                          [(pointer direct-abstract-declarator) #f])
@@ -206,11 +213,19 @@
              [(* pointer) #f]
              [(* type-qualifier-list pointer) #f])
     (direct-abstract-declarator [(l-paren abstract-declarator r-paren) #f]
-                                [(direct-abstract-declarator? l-bracket type-qualifier-list? assignment-expression? r-bracket) #f]
-                                [(direct-abstract-declarator? l-bracket static type-qualifier-list? assignment-expression r-bracket) #f]
-                                [(direct-abstract-declarator? l-bracket type-qualifier-list static assignment-expression r-bracket) #f]
-                                [(direct-abstract-declarator? l-bracket * r-bracket) #f]
-                                [(direct-abstract-declarator? l-paren parameter-type-list? r-paren) #f])
+                                [(                           l-bracket                     assignment-expression? r-bracket) #f]
+                                [(                           l-bracket type-qualifier-list assignment-expression? r-bracket) #f]
+                                [(direct-abstract-declarator l-bracket                     assignment-expression? r-bracket) #f]
+                                [(direct-abstract-declarator l-bracket type-qualifier-list assignment-expression? r-bracket) #f]
+                                [(                           l-bracket static type-qualifier-list? assignment-expression r-bracket) #f]
+                                [(direct-abstract-declarator l-bracket static type-qualifier-list? assignment-expression r-bracket) #f]
+                                [(                           l-bracket type-qualifier-list static assignment-expression r-bracket) #f]
+                                [(direct-abstract-declarator l-bracket type-qualifier-list static assignment-expression r-bracket) #f]
+                                [(                           l-bracket * r-bracket) #f]
+                                [(direct-abstract-declarator l-bracket * r-bracket) #f]
+                                [(                           l-paren parameter-type-list? r-paren) #f]
+                                [(direct-abstract-declarator l-paren parameter-type-list? r-paren) #f]
+                                )
     (parameter-type-list [(parameter-list) #f]
                          [(parameter-list comma ellipsis) #f])
     (parameter-declaration [(declaration-specifiers declarator) #f]
@@ -284,7 +299,7 @@
     (labeled-statement [(identifier : statement) #f]
                        [(case constant-expression : statement) #f]
                        [(default : statement) #f])
-    (compound-statement [(l-brace block-item-list? r-paren) #f])
+    (compound-statement [(l-brace block-item-list? r-brace) #f])
     (block-item-list [(block-item) #f]
                      [(block-item-list block-item) #f])
     (block-item [(declaration) #f]
