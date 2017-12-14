@@ -18,7 +18,10 @@
     (TranslationUnit [(TODO) #f])
     (Identifier [(identifier) #f])
 
+
+    ;; ==============================
     ;; expressions
+    ;; ==============================
     (constant-expression [(conditional-expression) #f])
     (expression [(assignment-expression) #f]
                 [(expression comma assignment-expression) #f])
@@ -106,7 +109,110 @@
               [(f-constant) #f])
     (argument-expression-list [(assignment-expression) #f]
                               [(argument-expression-list comma assignment-expression) #f])
+
+    ;; ==============================
     ;; declarations
+    ;; ==============================
+    (declaration [(declaration-specifiers init-declarator-list? semi-colon) #f])
+
+    ;; specifiers
+    (declaration-specifiers [(storage-class-specifier declaration-specifiers?) #f]
+                            [(type-specifier declaration-specifiers?) #f]
+                            [(type-qualifier declaration-specifiers?) #f]
+                            [(function-specifier declaration-specifiers?) #f])
+    (type-name [(specifier-qualifier-list) #f]
+               [(specifier-qualifier-list abstract-declarator) #f])
+    (specifier-qualifier-list [(type-specifier) #f]
+                              [(type-specifier specifier-qualifier-list) #f]
+                              [(type-qualifier) #f]
+                              [(type-qualifier specifier-qualifier-list) #f])
+    (type-qualifier-list [(const) #f]
+                         [(restrict) #f]
+                         [(volatile) #f])
+    (type-specifier [(void) #f]
+                    [(char) #f]
+                    [(short) #f]
+                    [(int) #f]
+                    [(long) #f]
+                    [(float) #f]
+                    [(double) #f]
+                    [(signed) #f]
+                    [(unsigned) #f]
+                    [(bool) #f]
+                    [(complex) #f]
+                    ;; this seems to be more complex
+                    [(struct-or-union-specifier) #f]
+                    [(enum-specifier) #f]
+                    [(typedef-name) #f])
+    (type-qualifier [(const) #f]
+                    [(restrict) #f]
+                    [(volatile) #f])
+    (storage-class-specifier [(typedef) #f]
+                             [(extern) #f]
+                             [(static) #f]
+                             [(auto) #f]
+                             [(register) #f])
+    (function-specifier [(inline) #f])
+    (identifier-list [(identifier) #f]
+                     [(identifier-list comma identifier) #f])
+    ;; FIXME typedef name
+    (enumerator-constant [(identifier) #f])
+
+    ;; structure
+    (struct-or-union-specifier [(struct-or-union identifier? l-brace struct-declaration-list r-brace) #f]
+                               [(struct-or-union identifier) #f])
+    (struct-or-union [(struct) #f]
+                     [(union) #f])
+    (enum-specifier [(enum identifier? l-brace enumerator-list r-brace) #f]
+                    [(enum identifier? l-brace enumerator-list comma r-brace) #f]
+                    [(enum identifier) #f])
+    (struct-declaration [(specifier-qualifier-list struct-declarator-list) #f])
+    (enumerator [(enumeration-constant) #f]
+                [(enumeration-constant = constant-expression) #f])
+    (enumerator-list [(enumerator) #f]
+                     [(enumerator-list comma enumerator) #f])
+    (struct-declaration-list [(struct-declaration) #f]
+                             [(struct-declaration-list struct-declaration) #f])
+    (struct-declarator-list [(struct-declarator) #f]
+                            [(struct-declarator-list comma struct-declarator) #f])
+    (struct-declarator [(declarator) #f]
+                       [(declarator? : constant-expression) #f])
+
+
+    ;; declarator
+    (declarator [(pointer? direct-declarator) #f])
+    (abstract-declarator [(pointer) #f]
+                         [(direct-abstract-declarator) #f]
+                         [(pointer direct-abstract-declarator) #f])
+    (pointer [(*) #f]
+             [(* type-qualifier-list) #f]
+             [(* pointer) #f]
+             [(* type-qualifier-list pointer) #f])
+    (direct-abstract-declarator [(l-paren abstract-declarator r-paren) #f]
+                                [(direct-abstract-declarator? l-bracket type-qualifier-list? assignment-expression? r-bracket) #f]
+                                [(direct-abstract-declarator? l-bracket static type-qualifier-list? assignment-expression r-bracket) #f]
+                                [(direct-abstract-declarator? l-bracket type-qualifier-list static assignment-expression r-bracket) #f]
+                                [(direct-abstract-declarator? l-bracket * r-bracket) #f]
+                                [(direct-abstract-declarator? l-paren parameter-type-list? r-paren) #f])
+    (parameter-type-list [(parameter-list) #f]
+                         [(parameter-list comma ellipsis) #f])
+    (parameter-declaration [(declaration-specifiers declarator) #f]
+                           [(declaration-specifiers abstract-declarator?) #f])
+    (direct-declarator [(identifier) #f]
+                       [(l-paren declarator r-paren) #f]
+                       [(direct-declarator l-bracket type-qualifier-list? assignment-expression? r-bracket) #f]
+                       [(direct-declarator l-bracket static type-qualifier-list? assignment-expression r-bracket) #f]
+                       [(direct-declarator l-bracket type-qualifier-list static assignment-expression r-bracket) #f]
+                       [(direct-declarator l-bracket type-qualifier-list? * r-bracket) #f]
+                       [(direct-declarator l-paren parameter-type-list r-paren) #f]
+                       [(direct-declarator l-paren identifier-list? r-paren) #f])
+    ;; initializer
+    (init-declarator-list? [() #f]
+                           [(init-declarator-list) #f])
+    (init-declarator-list [(init-declarator) #f]
+                          [(init-declarator-list comma init-declarator) #f])
+    (init-declarator [(declarator) #f]
+                     [(declarator = initializer) #f])
     (initializer-list [(initializer) #f]
                       [(designation initializer) #f]
                       [(initializer-list comma initializer) #f]
@@ -119,6 +225,29 @@
                      [(designator-list designator) #f])
     (designator [(l-bracket constant-expression r-bracket) #f]
                 [(period identifier) #f])
-    (type-name [(specifier-qualifier-list) #f]
-               [(specifier-qualifier-list abstract-declarator) #f])
+
+
+    ;; optional
+    (declaration-specifiers? [() #f]
+                             [(declaration-specifiers) #f])
+    (abstract-declarator? [() #f]
+                          [(abstract-declarator) #f])
+    (direct-abstract-declarator? [() #f]
+                                 [(direct-abstract-declarator) #f])
+    (type-qualifier-list? [() #f]
+                          [(type-qualifier-list) #f])
+    (assignment-expression? [() #f]
+                            [(assignment-expression) #f])
+    (parameter-type-list? [() #f]
+                          [(parameter-type-list) #f])
+    (identifier? [() #f]
+                 [(identifier) #f])
+    (declarator? [() #f]
+                 [(declarator) #f])
+    (pointer? [() #f]
+              [(pointer) #f])
+    (identifier-list? [() #f]
+                      [(identifier-list) #f])
+    (parameter-list [(parameter-declaration) #f]
+                    [(parameter-list comma parameter-declaration) #f])
     )))
