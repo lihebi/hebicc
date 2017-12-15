@@ -96,3 +96,14 @@
 (struct id:storage   id (class) #:prefab)
 (struct id:inline    id () #:prefab)
 (struct id:star      id () #:prefab)
+
+
+
+;; ==============================
+;; parse tree
+;; ==============================
+
+(struct pos (start-pos end-pos) #:prefab)
+
+(struct pt:node (pos) #:prefab)
+(struct pt:type_specifier pt:node (value) #:prefab)

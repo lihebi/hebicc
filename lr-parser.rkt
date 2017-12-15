@@ -2,6 +2,7 @@
 
 (require "token.rkt")
 (require "lexer.rkt")
+(require "ast.rkt")
 (require parser-tools/lex
          parser-tools/yacc)
 
@@ -9,13 +10,35 @@
 (module+ test
   (let ([parser (lr-parser)]
         [lexer (string-lexer
-                "
-int foo() {if (a) if (b) a=b;else a=b;}")])
-    (parser (lambda () (lexer)))))
+                "int foo() {if (a) if (b) a=b;else a=b;}")])
+    ((first parser) (lambda () (lexer))))
+  (let ([parser (lr-parser)]
+        [lexer (string-lexer "int")])
+    ((second parser) (lambda () (lexer))))
+  (let ([parser (lr-parser)]
+        [lexer (string-lexer "long")])
+    ((second parser) (lambda () (lexer))))
+
+  )
 
 (define (lr-parser)
+  (define-syntax (@ stx)
+    (syntax-case stx ()
+      [(_ start end)
+       (with-syntax ([start-stx
+                      (datum->syntax
+                       #'start
+                       (string->symbol
+                        (format "$~a-start-pos" (syntax->datum #'start))))]
+                     [end-stx
+                      (datum->syntax
+                       #'end
+                       (string->symbol
+                        (format "$~a-end-pos" (syntax->datum #'end))))])
+         #'(pos start-stx end-stx))]))
   (parser
    (start translation-unit
+          type-specifier
           )
    (end eof)
    (src-pos)
@@ -155,11 +178,12 @@ int foo() {if (a) if (b) a=b;else a=b;}")])
     (type-specifier [(void) #f]
                     [(char) #f]
                     [(short) #f]
-                    [(int) #f]
-                    [(long) #f]
-                    [(float) #f]
-                    [(double) #f]
-                    [(signed) #f]
+                    ;; (pt:type_specifier (pos (position 1 1 1) (position 3 3 4)) "hello")
+                    [(int) (pt:type_specifier (@ 1 1) $1)]
+                    [(long) (pt:type_specifier (@ 1 1) $1)]
+                    [(float) (pt:type_specifier (@ 1 1) $1)]
+                    [(double) (pt:type_specifier (@ 1 1) $1)]
+                    [(signed) (pt:type_specifier (@ 1 1) $1)]
                     [(unsigned) #f]
                     [(bool) #f]
                     [(complex) #f]
