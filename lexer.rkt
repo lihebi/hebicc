@@ -4,13 +4,20 @@
 (require "token.rkt")
 (require (prefix-in : parser-tools/lex-sre))
 
-(provide string-lexer file-lexer get-lexer get-token-name get-token-value)
+(provide string-lexer file-lexer get-lexer get-token-name get-token-value lexer->list)
+
+
+(define (read-typedef-names filename)
+  (map string->symbol (string-split (file->string filename))))
 
 ;; TODO more typedef names
 ;; TODO configuration
 ;; TODO by preprocessing
+
 (define *typedef-names*
-  '(bool))
+  ;; '(bool)
+  (read-typedef-names "./data/linux-4.14.9-typedef.txt"))
+
 
 (define-lex-abbrevs
   (BlockComment (:: "/*"
