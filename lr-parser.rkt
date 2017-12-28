@@ -18,8 +18,35 @@
   (let ([parser (lr-parser)]
         [lexer (string-lexer "long")])
     ((second parser) (lambda () (lexer))))
-
+  (parse-string
+   "struct bsd_acct_struct {
+	struct fs_pin		pin;
+	atomic_long_t		count;
+	struct rcu_head		rcu;
+	struct mutex		lock;
+	int			active;
+	unsigned long		needcheck;
+	struct file		*file;
+	struct pid_namespace	*ns;
+	struct work_struct	work;
+	struct completion	done;
+};"
+   )
+  (lexer->list (string-lexer "atomic_long_t"))
+  (parse-string "int a;")
+  (parse-file "/home/hebi/Downloads/linux-4.14.9/kernel/acct.c")
   )
+
+
+(define (parse-string str)
+  (let ([parser (lr-parser)]
+        [lexer (string-lexer str)])
+    ((first parser) (lambda () (lexer)))))
+
+(define (parse-file filename)
+  (let ([parser (lr-parser)]
+        [lexer (file-lexer filename)])
+    ((first parser) (lambda () (lexer)))))
 
 (define (lr-parser)
   (define-syntax (@ stx)
