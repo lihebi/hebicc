@@ -212,7 +212,7 @@
     (enum-specifier [(enum identifier? l-brace enumerator-list r-brace) #f]
                     [(enum identifier? l-brace enumerator-list comma r-brace) #f]
                     [(enum identifier) #f])
-    (struct-declaration [(specifier-qualifier-list struct-declarator-list) #f])
+    (struct-declaration [(specifier-qualifier-list struct-declarator-list semi-colon) #f])
     (enumerator [(enumeration-constant) #f]
                 [(enumeration-constant = constant-expression) #f])
     (enumerator-list [(enumerator) #f]
