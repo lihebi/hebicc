@@ -39,3 +39,10 @@ lexer state functions.
 2. modify it to remove the lexer state part. I don't need to keep
    track of typename and variable name
 3. fix the bug, which seems to be hard
+
+* Ctags get typedef
+
+#+begin_example
+ctags -R --c-kinds=t .
+cat tags  | awk '{print $1}' | sort | uniq > linux-4.14.9-typedef.txt
+#+end_example
