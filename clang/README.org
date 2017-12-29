@@ -1,0 +1,69 @@
+#+TITLE: Clang to Json
+
+I'm going to use clang to compile a C file into Json.
+
+- I have Makefile for Linux, will clang read it as CompilationDatabase
+  and correctly figuring out the flags?
+- I can instruct make to write .i, .s, .cmd intermediate files, than
+  this clang tool should gives:
+  - the AST output in a file (e.g. json)
+  - collect the definitions (struct, typedef, function) included
+
+
+* The output format
+Some requirement
+1. easy to parse by lisp
+2. easy to produce
+
+Json format of AST
+
+#+begin_src json
+  {
+      "type": "nt"
+      "key": "if-stmt"
+      "children": {
+          "cond": {expr}
+          "true-branch": {stmt}
+          "false-branch": {stmt}
+      }
+  }
+
+  {
+      "type": "t"
+      "key": "if-keyword"
+      "lexeme": "if"
+      "begin-loc": {"line": 8, "col": 7}
+      "end-loc": {"line": 8, "col": 7}
+  }
+
+#+end_src
+
+Options
+
+|---------------+--------------------------------|
+| key           | children                       |
+|---------------+--------------------------------|
+| func-decl     | ret-type, name, [params], body |
+|---------------+--------------------------------|
+| decl-stmt     | name                           |
+| comp-stmt     | [stmts]                        |
+| expr-stmt     | expr                           |
+|---------------+--------------------------------|
+| break-stmt    |                                |
+| return-stmt   |                                |
+| continue-stmt |                                |
+|---------------+--------------------------------|
+| if-stmt       | cond, t, f                     |
+| switch-stmt   | cond, body                     |
+|---------------+--------------------------------|
+| case-stmt     | cond, stmt                     |
+| default-stmt  | stmt                           |
+| label-stmt    | label, stmt                    |
+| goto-stmt     | label                          |
+|---------------+--------------------------------|
+| do-stmt       | body, cond                     |
+| while-stmt    | cond, body                     |
+| for-stmt      | init, cond, inc, body          |
+|---------------+--------------------------------|
+| expr          | content                        |
+|---------------+--------------------------------|
